@@ -961,8 +961,68 @@
   }
   .cmt-item{ font-size:13px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
   .cmt-item b{ color:var(--accent); }
+
+  /* ---------- v6 NOW / LIVE layout ---------- */
+  .group-bar, #peopleRow{ display:none !important; }
+  .live-group-shell{ margin:0 0 14px; }
+  .live-group-head{ display:flex; justify-content:flex-start; }
+  .live-group-btn{
+    width:100%; display:flex; align-items:center; gap:9px; padding:9px 12px;
+    border-radius:16px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk); cursor:pointer; touch-action:manipulation; text-align:left;
+    box-shadow:0 5px 18px rgba(0,0,0,.14);
+  }
+  .live-group-btn:active{ transform:scale(.985); }
+  .live-group-icon{ width:28px; height:28px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent); flex:0 0 auto; font-size:15px; }
+  .live-group-label{ min-width:0; flex:1; font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .live-group-chevron{ color:var(--chalk-faint); font-size:12px; }
+  .live-group-btn.minimal{ width:auto; padding:5px 9px 5px 6px; border-radius:13px; }
+  .live-group-btn.minimal .live-group-icon{ width:24px; height:24px; border-radius:8px; font-size:13px; }
+  .live-group-btn.minimal .live-group-label{ flex:0 0 auto; font-size:11px; }
+  .live-people-row{ padding:0 0 4px; margin-top:8px; }
+  .live-people-row .people-group-chip{ display:none !important; }
+
+  /* The group selector has moved to Live; NOW is deliberately uncluttered. */
+  .timer-top-actions{ display:none !important; }
+  .timer-ring-wrap{ position:relative; padding-top:8px; margin-bottom:8px; }
+  .timer-frame-focus-btn{
+    display:none; position:absolute; right:8px; top:4px; z-index:30;
+    width:42px; height:42px; padding:0; border-radius:50%;
+    align-items:center; justify-content:center; font-size:0;
+    background:var(--c4); border:1px solid rgba(184,160,217,.8); color:#171321;
+    box-shadow:0 6px 18px rgba(0,0,0,.18);
+  }
+  .timer-frame-focus-btn.visible{ display:flex; }
+  .timer-frame-focus-btn::first-letter{ font-size:18px; }
+  .timer-link-float-wrap{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; margin:2px 0 10px; min-height:48px;
+  }
+  .timer-link-float{
+    width:44px; height:44px; border-radius:50%; border:1px solid rgba(232,196,104,.62);
+    background:rgba(232,196,104,.14); color:var(--c6); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:19px;
+    box-shadow:0 6px 15px rgba(0,0,0,.16); touch-action:manipulation;
+  }
+  .timer-link-float.linked{ background:rgba(34,211,238,.16); border-color:var(--accent); color:var(--accent); }
+  .timer-link-float-status{ font-size:9px; color:var(--chalk-faint); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  body.focus-active .timer-link-float-wrap,
+  body.focus-active .timer-frame-focus-btn{ display:none !important; }
+  #timerControlsWrap .timer-controls{ margin-bottom:16px; }
+  #goalCard{ margin-top:8px; }
+
+  /* Group action sheet */
+  .group-action-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px; }
+  .group-action-grid button{ min-height:62px; }
+  .group-action-grid .wide{ grid-column:1 / -1; }
+  .group-edit-members{ max-height:180px; overflow:auto; border:1px solid var(--card-line); border-radius:12px; padding:4px 10px; background:var(--board); }
+  .group-edit-member{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--card-line); font-size:12px; }
+  .group-edit-member:last-child{ border-bottom:none; }
+  .group-edit-member button{ border:0; background:none; color:var(--danger); cursor:pointer; font-size:12px; }
+
 </style>
 </head>
+<!-- Studyboard v6 layout patch -->
 <body>
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
@@ -1007,15 +1067,7 @@
     </div>
   </header>
 
-  <div class="group-bar">
-    <button class="group-bar-main" id="groupBar">
-      <span id="groupBarLabel">Loading…</span>
-      <span class="group-bar-arrow">▾</span>
-    </button>
-    <button class="group-bar-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
-  </div>
-
-  <div class="people-row" id="peopleRow"></div>
+  <!-- Group + people controls intentionally live only on the Live page now. -->
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
 
@@ -1042,11 +1094,7 @@
         <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
 
         <div class="timer-ring-wrap">
-          <div class="timer-top-actions" id="timerTopActions">
-            <button type="button" class="timer-link-btn" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
-            <div class="timer-link-label" id="timerTaskLinkLabel">No daily task linked (optional)</div>
-            <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Focus</button>
-          </div>
+          <button type="button" class="focus-toggle-btn timer-frame-focus-btn" id="focusToggleBtn" title="Enter focus mode">🧘 Focus</button>
           <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
@@ -1063,6 +1111,11 @@
             </div>
             <div class="timer-label" id="swStatus">ready</div>
           </div>
+        </div>
+
+        <div class="timer-link-float-wrap" id="timerLinkFloatWrap">
+          <button type="button" class="timer-link-float" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
+          <span class="timer-link-float-status" id="timerTaskLinkLabel">Not linked</span>
         </div>
 
         <div class="timer-controls">
@@ -1101,6 +1154,16 @@
 
     <!-- LIVE SCREEN -->
     <section class="screen" id="screen-live">
+      <div class="live-group-shell" id="liveGroupShell">
+        <div class="live-group-head">
+          <button type="button" class="live-group-btn" id="liveGroupBtn">
+            <span class="live-group-icon" id="liveGroupIcon">👥</span>
+            <span class="live-group-label" id="liveGroupLabel">Loading…</span>
+            <span class="live-group-chevron">▾</span>
+          </button>
+        </div>
+        <div class="people-row live-people-row" id="livePeopleRow"></div>
+      </div>
       <div class="live-mini-timer" id="liveMiniTimer">
         <div class="lmt-digits" id="liveMiniDigits">00:00:00</div>
         <div class="lmt-controls">
@@ -1169,7 +1232,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -1931,26 +1994,99 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-  function renderGroupBar(){
-    const label = document.getElementById('groupBarLabel');
-    if(!label) return;
+
+  // ---------- v6 Live group controller ----------
+  let liveGroupUsersHidden = false;
+  function liveGroupHideKey(){ return activeGroupId ? 'sb-live-group-hidden:'+activeGroupId : 'sb-live-group-hidden:none'; }
+  function loadLiveGroupHidden(){
+    try{ liveGroupUsersHidden = localStorage.getItem(liveGroupHideKey()) === '1'; }catch(e){ liveGroupUsersHidden = false; }
+  }
+  function saveLiveGroupHidden(){
+    try{ localStorage.setItem(liveGroupHideKey(), liveGroupUsersHidden ? '1' : '0'); }catch(e){}
+  }
+  function renderLiveGroupPanel(){
+    const btn = document.getElementById('liveGroupBtn');
+    const label = document.getElementById('liveGroupLabel');
+    const icon = document.getElementById('liveGroupIcon');
+    const row = document.getElementById('livePeopleRow');
+    if(!btn || !label || !icon) return;
     if(!activeGroupData){
-      label.textContent = 'No group — tap to create or join one';
+      label.textContent = 'Create or join a group';
+      icon.textContent = '＋';
+      btn.classList.add('minimal');
+      if(row) row.style.display = '';
       return;
     }
-    let deadlineTag = '';
-    if(activeGroupData.deadlineAt){
-      const ended = Date.now() > activeGroupData.deadlineAt;
-      const d = new Date(activeGroupData.deadlineAt);
-      deadlineTag = `<span class="deadline-tag">${ended ? 'ENDED' : 'ends '+MONTHS[d.getMonth()]+' '+d.getDate()}</span>`;
+    if(liveGroupUsersHidden){
+      btn.classList.add('minimal');
+      icon.textContent = '👤';
+      label.textContent = me ? me.name : 'You';
+      if(row) row.style.display = 'none';
+    }else{
+      btn.classList.remove('minimal');
+      icon.textContent = '👥';
+      label.textContent = activeGroupData.name || 'Group';
+      if(row) row.style.display = currentScreen==='live' ? '' : 'none';
     }
-    label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
-  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
-  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
-    if(activeGroupId) openGroupsModal(activeGroupId);
-    else openGroupsModal();
-  });
+  function openLiveGroupMenu(){
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>${escapeHtml(activeGroupData?.name || 'Group')}</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 12px;">Manage the active Live group.</div><div class="group-action-grid"><button class="btn btn-ghost" id="lg-edit">✎<br><small>Edit</small></button><button class="btn btn-ghost" id="lg-share">↗<br><small>Share</small></button><button class="btn btn-ghost" id="lg-hide">◉<br><small>${liveGroupUsersHidden?'Show people':'Hide people'}</small></button><button class="btn btn-primary" id="lg-switch">⇄<br><small>Switch / Create</small></button></div></div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#lg-edit').addEventListener('click',()=>{close(); openGroupEditModal(activeGroupId);});
+    backdrop.querySelector('#lg-share').addEventListener('click',()=>{close(); openGroupShareModal(activeGroupId);});
+    backdrop.querySelector('#lg-hide').addEventListener('click',()=>{liveGroupUsersHidden=!liveGroupUsersHidden; saveLiveGroupHidden(); renderLiveGroupPanel(); renderPeopleRow(); close();});
+    backdrop.querySelector('#lg-switch').addEventListener('click',()=>{close(); openGroupsModal();});
+  }
+  async function openGroupShareModal(groupId){
+    if(!groupId) return;
+    let g=activeGroupData;
+    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
+    if(!g) return;
+    const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;
+    const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase;margin-bottom:4px;">Access code</div><div class="code">${escapeHtml(g.inviteCode||'')}</div><img src="${qrUrl}" alt="QR code"><button class="btn btn-ghost" id="lg-copy" style="width:100%;margin-top:6px;">Copy invite link</button></div><div style="font-size:11px;color:var(--chalk-faint);word-break:break-all;">${escapeHtml(inviteUrl)}</div></div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#lg-copy').addEventListener('click',()=>{navigator.clipboard?.writeText(inviteUrl).catch(()=>{}); const b=backdrop.querySelector('#lg-copy'); const old=b.textContent; b.textContent='Copied ✓'; setTimeout(()=>b.textContent=old,1200);});
+  }
+  async function openGroupEditModal(groupId){
+    if(!groupId) return;
+    let g=activeGroupData;
+    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
+    if(!g) return;
+    const isOwner=g.ownerId===me.id;
+    const members=Object.keys(g.members||{});
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit group</h3><div class="field-row"><label>Group name</label><input id="lge-name" type="text" value="${escapeHtml(g.name||'')}"></div><div class="field-row"><label>Daily target (hours)</label><input id="lge-daily" type="number" min="0" step="0.5" value="${Number(g.dailyGoalHours||0)}"></div><div class="field-row"><label>Weekly target (hours)</label><input id="lge-weekly" type="number" min="0" step="0.5" value="${Number(g.weeklyGoalHours||0)}"></div><div class="field-row"><label>Deadline</label><input id="lge-deadline" type="date" value="${g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):''}"></div><h4 style="margin:16px 0 6px;font-family:'Kalam';font-size:14px;color:var(--chalk-dim);font-weight:400;">Members</h4><div class="group-edit-members" id="lge-members"></div><div class="modal-actions"><button class="btn btn-ghost" id="lge-cancel">Cancel</button><button class="btn btn-primary" id="lge-save">Save</button></div>${isOwner?'<button class="btn btn-danger" id="lge-delete" style="width:100%;margin-top:8px;">Delete group</button>':''}</div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.querySelector('#lge-cancel').addEventListener('click',close);
+    const membersWrap=backdrop.querySelector('#lge-members');
+    membersWrap.innerHTML=members.map(uid=>{const p=profileFor(uid); return `<div class="group-edit-member"><span>${escapeHtml(p.name)}${uid===me.id?' (you)':''}${uid===g.ownerId?' 👑':''}</span>${isOwner&&uid!==me.id?`<button type="button" data-remove="${uid}">Remove</button>`:''}</div>`;}).join('')||'<div style="padding:10px;color:var(--chalk-faint);">No members.</div>';
+    membersWrap.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{await removeMemberFromGroup(groupId,b.dataset.remove); openGroupEditModal(groupId); close();}));
+    backdrop.querySelector('#lge-save').addEventListener('click',async()=>{
+      const name=backdrop.querySelector('#lge-name').value.trim(); if(!name){alert('Group name is required.');return;}
+      const deadlineStr=backdrop.querySelector('#lge-deadline').value;
+      const patch={name,dailyGoalHours:parseFloat(backdrop.querySelector('#lge-daily').value)||0,weeklyGoalHours:parseFloat(backdrop.querySelector('#lge-weekly').value)||0,deadlineAt:deadlineStr?new Date(deadlineStr+'T23:59:59').getTime():null};
+      await setDoc(doc(db,'groups',groupId),patch,{merge:true}); close();
+    });
+    const del=backdrop.querySelector('#lge-delete');
+    if(del) del.addEventListener('click',async()=>{if(!confirm('Delete this group permanently?')) return; try{await deleteDoc(doc(db,'groups',groupId)); await deleteDoc(doc(db,'groupMemberships',me.id));}catch(e){alert('Could not delete group: '+e.message);return;} myGroupIds=myGroupIds.filter(id=>id!==groupId); activeGroupId=myGroupIds[0]||null; try{await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});}catch(e){} close(); await subscribeActiveGroup();});
+  }
+
+  function renderGroupBar(){
+    loadLiveGroupHidden();
+    renderLiveGroupPanel();
+  }
+  document.getElementById('liveGroupBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); openLiveGroupMenu(); });
 
   function openGroupsModal(jumpToGroupId){
     const backdrop = document.createElement('div');
@@ -2363,36 +2499,25 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(typeof openGroupsModal==='function') openGroupsModal();
   });
   function renderPeopleRow(){
-    const el = document.getElementById('peopleRow');
-    if(!me){ el.innerHTML=''; return; }
-    const groupName = activeGroupData?.name || 'Group';
+    const el = document.getElementById('livePeopleRow');
+    if(!el){ return; }
+    if(!me || currentScreen!=='live' || liveGroupUsersHidden){ el.innerHTML=''; if(currentScreen!=='live' || liveGroupUsersHidden) el.style.display='none'; return; }
+    el.style.display='flex';
     const others = usersList.filter(u=>u.id!==me.id);
     const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-    const groupChip = `<div class="people-group-chip" id="peopleGroupChip" title="Switch group"><span>👥</span><span class="group-mini">${escapeHtml(groupName)}</span><button class="group-mini-info" id="peopleGroupInfo" title="Group details">⋯</button></div>`;
-    el.innerHTML = groupChip + chips.map(c=>{
+    el.innerHTML = chips.map(c=>{
       const st = liveCache[c.id];
       const studying = !!(st && st.studying);
       const mins = liveMinutesFor(st);
       const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
       const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
-      return `
-        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
-          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
-          <span class="p-meta">
-            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
-            <span class="p-today">${fmtHM(mins)} today</span>
-          </span>
-        </div>`;
+      return `<div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${avatarInner}</span><span class="p-meta"><span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span><span class="p-today">${fmtHM(mins)} today</span></span></div>`;
     }).join('');
-    document.getElementById('peopleGroupChip')?.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); openGroupsModal(); });
-    document.getElementById('peopleGroupInfo')?.addEventListener('click', e=>{ e.stopPropagation(); document.getElementById('groupBarInfo')?.click(); });
     el.querySelectorAll('.person-chip').forEach(chip=>{
       chip.addEventListener('click', async ()=>{
-        const id = chip.dataset.id;
-        if(id === me.id){ viewingId = null; render(); return; }
-        viewingId = id;
-        await fetchFriendBoard(id);
-        render();
+        const id=chip.dataset.id;
+        if(id===me.id){ viewingId=null; render(); return; }
+        viewingId=id; await fetchFriendBoard(id); render();
       });
     });
   }
@@ -2597,6 +2722,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       render();
+      renderLiveGroupPanel();
+      renderPeopleRow();
     });
   });
   document.getElementById('fabAdd').style.display = 'none';
@@ -2678,10 +2805,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return {getValue:()=>Math.max(1,hVal*60+mVal)};
   }
   function renderTimerTaskLink(){
-    const el=document.getElementById('timerTaskLinkLabel'), btn=document.getElementById('timerTaskPin');
-    if(!el||!btn) return;
-    const task=(blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId));
-    el.textContent=task ? `Linked: ${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min` : 'No daily task linked (optional)';
+    const label=document.getElementById('timerTaskLinkLabel'), btn=document.getElementById('timerTaskPin');
+    if(!label||!btn) return;
+    const task=blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId);
+    if(task){
+      label.textContent=`${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min`;
+      btn.title=`Linked to: ${task.label || subjectNameIn(task.subject,state)} (${task.duration||30} min)`;
+    }else{
+      label.textContent='Not linked';
+      btn.title='Link this timer to a daily task';
+    }
     btn.classList.toggle('linked',!!task);
     if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
       countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
@@ -2770,18 +2903,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let wakeLockSentinel = null;
   function updateFocusToggleVisibility(){
     const btn = document.getElementById('focusToggleBtn');
-    if(btn) btn.classList.toggle('visible', timerRunning);
+    if(btn) btn.classList.toggle('visible', timerRunning && !document.body.classList.contains('focus-active'));
     if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
   }
   async function enterFocusMode(){
     if(!timerRunning) return; // only enterable once a session is actually running
     document.body.classList.add('focus-active');
+    document.getElementById('timerLinkFloatWrap')?.style.setProperty('display','none','important');
+    document.getElementById('focusToggleBtn')?.style.setProperty('display','none','important');
     if('wakeLock' in navigator){
       try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
     }
   }
   function exitFocusMode(){
     document.body.classList.remove('focus-active');
+    document.getElementById('timerLinkFloatWrap')?.style.removeProperty('display');
+    document.getElementById('focusToggleBtn')?.style.removeProperty('display');
+    updateFocusToggleVisibility();
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
   document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
@@ -2825,6 +2963,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
         linkedTaskId: linkedTaskId || null, mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
       startSnapshotScheduler();
+      document.getElementById('customFocusWheel').style.display='none';
+      document.getElementById('countdownLenChips').style.display='none';
+      document.getElementById('timerModeSwitch').classList.add('mode-collapsed');
       updateFocusToggleVisibility();
       updateRunningDeclutter();
       notifyFirstSessionOfDayIfNeeded();
