@@ -610,6 +610,28 @@
   .timer-link-row{ display:flex; align-items:center; gap:8px; margin:-4px 0 14px; }
   .timer-link-btn{ width:30px; height:30px; flex:0 0 auto; border-radius:9px; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); cursor:pointer; font-size:14px; }
   .timer-link-btn.linked{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
+  .timer-face-actions{ position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:center; z-index:3; pointer-events:none; }
+  .timer-face-action{ pointer-events:auto; width:34px; height:34px; border-radius:10px; border:1px solid var(--card-line); background:rgba(34,38,52,.9); color:var(--chalk-dim); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .timer-face-action.linked{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
+  .timer-face-action.focus-action{ font-size:13px; }
+  .timer-face-action.focus-action.hidden{ opacity:0; pointer-events:none; transform:scale(.92); }
+  .timer-ring-wrap{ position:relative; }
+  .focus-toggle-btn{ display:none !important; }
+  .group-bar{ align-items:center; }
+  .group-bar-main{ border-radius:12px; padding:9px 12px; justify-content:flex-start; gap:8px; }
+  .group-bar-main .group-symbol{ width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:var(--board); flex:0 0 auto; }
+  .group-bar-main .group-chevron{ margin-left:auto; }
+  .group-bar-info{ display:none; }
+  .group-bar.hidden-group{ width:auto; margin-left:16px; margin-right:auto; }
+  .group-bar.hidden-group .group-bar-main{ width:auto; padding:6px 9px; background:transparent; border-color:transparent; }
+  .group-bar.hidden-group .group-bar-main .group-label-text{ display:none; }
+  .group-bar.hidden-group .group-bar-main .group-symbol{ background:var(--card); }
+  .group-bar.hidden-group .group-bar-main .group-hidden-user{ display:inline; font-size:11px; color:var(--chalk-dim); }
+  .group-hidden-user{ display:none; }
+  .group-action-list{ display:grid; gap:8px; margin-top:8px; }
+  .group-action-list button{ width:100%; text-align:left; padding:13px 14px; }
+  .group-edit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .group-edit-grid .field-row{ margin:0; }
   .timer-link-label{ flex:1; min-width:0; font-size:11px; color:var(--chalk-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .task-actions{ width:30px; height:30px; flex:0 0 auto; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); border-radius:9px; cursor:pointer; font-size:18px; }
   .task-progress-donut{ width:34px; height:34px; position:relative; flex:0 0 auto; }
@@ -973,10 +995,12 @@
     </div>
   </header>
 
-  <div class="group-bar">
-    <button class="group-bar-main" id="groupBar">
-      <span id="groupBarLabel">Loading…</span>
-      <span class="group-bar-arrow">▾</span>
+  <div class="group-bar" id="groupBarWrap">
+    <button class="group-bar-main" id="groupBar" title="Group options">
+      <span class="group-symbol">👥</span>
+      <span class="group-label-text" id="groupBarLabel">Loading…</span>
+      <span class="group-hidden-user" id="groupHiddenUser"></span>
+      <span class="group-bar-arrow group-chevron">▾</span>
     </button>
     <button class="group-bar-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
   </div>
@@ -1012,6 +1036,10 @@
         <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
 
         <div class="timer-ring-wrap">
+          <div class="timer-face-actions">
+            <button type="button" class="timer-face-action" id="timerLinkedTop" title="Link daily target">📌 Linked</button>
+            <button type="button" class="timer-face-action focus-action hidden" id="focusTop" title="Enter focus mode">🧘 Focus</button>
+          </div>
           <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
@@ -1134,7 +1162,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, updateDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -1911,11 +1939,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
-  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
-  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
-    if(activeGroupId) openGroupsModal(activeGroupId);
-    else openGroupsModal();
-  });
+  document.getElementById('groupBar').addEventListener('click', ()=> openGroupActionMenu());
+  document.getElementById('groupBarInfo').addEventListener('click', ()=> openGroupActionMenu());
 
   function openGroupsModal(jumpToGroupId){
     const backdrop = document.createElement('div');
@@ -2340,8 +2365,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </span>
         </div>`;
     }).join('');
-    document.getElementById('peopleGroupChip')?.addEventListener('click', ()=>openGroupsModal());
-    document.getElementById('peopleGroupInfo')?.addEventListener('click', e=>{ e.stopPropagation(); document.getElementById('groupBarInfo')?.click(); });
+    document.getElementById('peopleGroupChip')?.addEventListener('click', ()=>openGroupActionMenu());
+    document.getElementById('peopleGroupInfo')?.addEventListener('click', e=>{ e.stopPropagation(); openGroupActionMenu(); });
     el.querySelectorAll('.person-chip').forEach(chip=>{
       chip.addEventListener('click', async ()=>{
         const id = chip.dataset.id;
@@ -2589,6 +2614,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(modeSwitch) modeSwitch.classList.toggle('mode-collapsed', committed);
     if(optionsRow) optionsRow.classList.toggle('mode-collapsed', committed);
     if(chips) chips.style.display = (!committed && timerMode==='countdown') ? 'flex' : 'none';
+    if(committed) document.getElementById('customFocusWheel').style.display='none';
     if(!committed && timerMode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
@@ -2614,6 +2640,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
   });
   document.getElementById('timerTaskPin').addEventListener('click', openTimerTaskPicker);
+  document.getElementById('timerLinkedTop').addEventListener('click', openTimerTaskPicker);
+  document.getElementById('focusTop').addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); enterFocusMode(); });
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
   document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
 
@@ -2634,6 +2662,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const task=(blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId));
     el.textContent=task ? `Linked: ${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min` : 'No daily task linked (optional)';
     btn.classList.toggle('linked',!!task);
+    const top=document.getElementById('timerLinkedTop');
+    if(top) top.classList.toggle('linked',!!task);
     if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
       countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
       customFocusMin=Math.max(1,Number(task.duration||30));
@@ -2655,11 +2685,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{
       linkedTaskId=b.dataset.id;
       const task=tasks.find(t=>t.id===linkedTaskId);
-      if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
+      if(task && timerMode==='countdown'){
         countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
         customFocusMin=Math.max(1,Number(task.duration||30));
         document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
         document.getElementById('customFocusWheel').style.display='none';
+        if(timerRunning && elapsedMs >= countdownTotalMs){ elapsedMs=countdownTotalMs; finishSession(true,'linked-target'); return; }
       }
       renderTimerTaskLink(); close();
     }));
@@ -2722,6 +2753,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function updateFocusToggleVisibility(){
     const btn = document.getElementById('focusToggleBtn');
     if(btn) btn.classList.toggle('visible', timerRunning);
+    const top=document.getElementById('focusTop');
+    if(top) top.classList.toggle('hidden', !timerRunning);
     if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
   }
   async function enterFocusMode(){
@@ -2764,6 +2797,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
       timerRunning = true;
+      document.getElementById('customFocusWheel').style.display='none';
+      document.getElementById('countdownLenChips').style.display='none';
+      document.getElementById('timerModeSwitch').classList.add('mode-collapsed');
+      document.getElementById('timerOptionsRow').classList.add('mode-collapsed');
       lastTick = Date.now();
       if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
       document.getElementById('startBtn').textContent = 'Pause';
@@ -3416,6 +3453,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="es-subject"></select>
         </div>
         <div class="field-row">
+          <label>Linked daily target <span style="opacity:.6;text-transform:none;">(optional)</span></label>
+          <select id="es-linked-task"><option value="">No daily target</option></select>
+        </div>
+        <div class="field-row">
           <label>Duration (minutes)</label>
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
@@ -3431,6 +3472,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
     renderSubjectOptions(backdrop.querySelector('#es-subject'), session.subject);
+    const taskSelect = backdrop.querySelector('#es-linked-task');
+    const editTasks = blocksForDateIn(state, parseDateKey(dateKey));
+    taskSelect.innerHTML = '<option value="">No daily target</option>' + editTasks.map(t=>`<option value="${t.id}">${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('');
+    if(session.linkedTaskId) taskSelect.value = session.linkedTaskId;
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
@@ -3444,21 +3489,25 @@ window.storage = storage; // keep the rest of the app's code unchanged
       close();
     });
     backdrop.querySelector('#es-save').addEventListener('click', async ()=>{
-      const newSubject = backdrop.querySelector('#es-subject').value;
+      const newLinkedTaskId = backdrop.querySelector('#es-linked-task').value || null;
+      const selectedTask = newLinkedTaskId ? editTasks.find(t=>t.id===newLinkedTaskId) : null;
+      const newSubject = selectedTask ? selectedTask.subject : backdrop.querySelector('#es-subject').value;
       const newDuration = Math.max(1, parseInt(backdrop.querySelector('#es-duration').value||'1',10));
       const newNote = backdrop.querySelector('#es-note').value.trim();
-      const key = fmtDate(new Date());
+      const key = dateKey;
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
+      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; s.linkedTaskId = newLinkedTaskId; }
+      if(s) updateLinkedTaskProgress(key, s.linkedTaskId);
       await flushStateNow();
       renderSessions();
+      renderTaskList();
       renderGoalCard();
       renderStudyChart();
       close();
     });
   }
 
-  // ---------- TODAY SCREEN ----------
+  // ---------- TODAY SCREEN
   function renderDayScroller(){
     const el = document.getElementById('dayScroller');
     el.innerHTML='';
