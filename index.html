@@ -120,18 +120,10 @@
     overflow:hidden; white-space:nowrap;
   }
   .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
-  .mode-switch.mode-collapsed{ display:none; }
-  .timer-options-row{ display:flex; align-items:center; gap:8px; margin:-4px 0 10px; min-width:0; }
-  .timer-options-row .timer-link-row{ flex:1; min-width:0; margin:0; }
-  .timer-options-row .dur-chip-row{ flex:1.8; min-width:0; }
-  .timer-options-row .dur-chip{ min-width:0; padding:7px 4px; }
-  .timer-options-row .dur-chip .dur-min{ font-size:11px; }
-  .timer-options-row .dur-chip .dur-tag{ display:none; }
-  .timer-options-row.mode-collapsed{ display:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
   .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
-  .ring-outer{ position:relative; width:270px; height:270px; }
+  .ring-outer{ position:relative; width:230px; height:230px; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
   .ring-progress{
@@ -148,7 +140,7 @@
     align-items:center; justify-content:center; text-align:center;
   }
   .timer-digits{
-    font-family:'JetBrains Mono'; font-weight:700; font-size:42px; letter-spacing:0.5px;
+    font-family:'JetBrains Mono'; font-weight:700; font-size:38px; letter-spacing:0.5px;
     color:var(--chalk);
   }
   .timer-label{ font-size:12px; color:var(--chalk-faint); margin-top:6px; letter-spacing:0.5px; }
@@ -156,7 +148,7 @@
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:270px; text-align:center;
+    min-height:230px; text-align:center;
   }
   .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
   .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
@@ -298,9 +290,7 @@
     background:var(--card); border:1px solid var(--card-line); border-radius:14px;
     padding:14px; margin-bottom:10px;
   }
-  .task-card.done{ opacity:0.55; }
-  .task-card.progress-row{ position:relative; overflow:hidden; background:linear-gradient(90deg, rgba(var(--accent-rgb),0.20) 0%, rgba(var(--accent-rgb),0.20) var(--progress,0%), var(--card) var(--progress,0%), var(--card) 100%); transition:background .35s ease; }
-  .task-card.progress-row .progress-label{ font-family:'JetBrains Mono'; font-size:10px; color:var(--chalk-faint); margin-left:6px; }
+  .task-card.done{ opacity:0.45; }
   .task-card .time{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); min-width:60px; padding-top:2px; line-height:1.6; }
   .task-card .time .end{ opacity:0.65; }
   .task-card .time .arrow{ opacity:0.4; }
@@ -311,10 +301,36 @@
   .check{
     width:22px; height:22px; border-radius:7px; border:2px solid var(--chalk-faint);
     display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; margin-top:1px;
+    position:relative;
   }
   .check.checked, .check.done{ background:var(--accent); border-color:var(--accent); color:var(--ink); font-weight:900; font-size:14px; }
+  .check.has-donut{ border:none; width:26px; height:26px; }
+  .check.has-donut .check-pct{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:6.5px; font-weight:700; color:var(--chalk-dim); font-family:'JetBrains Mono';
+  }
   .task-del{ background:none; border:none; color:var(--chalk-faint); font-size:18px; cursor:pointer; padding:0 2px; }
   .task-edit{ background:none; border:none; color:var(--accent); font-size:14px; cursor:pointer; padding:0 4px; }
+
+  .task-menu-wrap{ position:relative; flex:0 0 auto; }
+  .task-menu-btn{
+    background:none; border:none; color:var(--chalk-faint); font-size:18px; cursor:pointer; padding:2px 6px;
+    line-height:1; position:relative;
+  }
+  .task-menu-btn.has-unread::after{
+    content:''; position:absolute; top:2px; right:2px; width:7px; height:7px; border-radius:50%; background:var(--c1);
+  }
+  .task-menu{
+    display:none; position:absolute; right:0; top:28px; z-index:20; min-width:130px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:6px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  }
+  .task-menu.open{ display:block; }
+  .task-menu button{
+    display:block; width:100%; text-align:left; background:none; border:none; color:var(--chalk-dim);
+    font-size:12.5px; padding:8px 10px; border-radius:8px; cursor:pointer;
+  }
+  .task-menu button:active{ background:var(--accent-dim); }
 
   .empty{
     text-align:center; padding:50px 20px; color:var(--chalk-faint);
@@ -358,7 +374,7 @@
 
   /* ---------- Week screen ---------- */
   .goal-card{
-    background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin-bottom:10px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin:18px 0 10px;
   }
   .goal-card .row1{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
   .goal-card .streak{ font-family:'Kalam'; font-size:14px; color:var(--chalk); display:flex; align-items:center; gap:6px; }
@@ -452,45 +468,18 @@
     background:rgba(184,160,217,0.12); border:1px solid rgba(184,160,217,0.3); padding:3px 9px; border-radius:20px;
   }
 
+  .task-pin-btn{
+    flex:0 0 auto; width:40px; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
+    font-size:16px; cursor:pointer; color:var(--chalk-faint);
+  }
+  .task-pin-btn.pinned{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .task-pin-label{ font-size:11px; color:var(--accent); margin-top:6px; }
+
   .week-day{ margin-bottom:20px; }
 
-
-  /* ---------- v5 NOW-page controls ---------- */
-  .timer-ring-wrap{ position:relative; }
-  .timer-top-actions{
-    display:flex; align-items:center; gap:6px; width:100%;
-    min-height:30px; margin:0 0 6px;
-    position:relative; z-index:8;
-  }
-  .timer-top-actions .timer-link-label{
-    flex:1; min-width:0; margin-left:2px;
-  }
-  .timer-top-actions .focus-toggle-btn{
-    display:none; width:auto; margin:0; padding:7px 10px;
-    border-radius:9px; font-size:11px; white-space:nowrap;
-    background:var(--accent-dim); border:1px solid var(--accent); color:var(--accent);
-    position:relative; z-index:10;
-  }
-  .timer-top-actions .focus-toggle-btn.visible{ display:block; }
-  .timer-top-actions .timer-link-btn{ margin-right:auto; }
-  body.focus-active .timer-top-actions,
-  body.focus-active .timer-top-actions .timer-link-btn,
-  body.focus-active .timer-top-actions .timer-link-label,
-  body.focus-active .timer-top-actions .focus-toggle-btn{ display:none !important; }
-  /* keep the single linked target visible during a running session */
-  #timerOptionsRow .timer-link-row{ display:none !important; }
-  /* thin breathing room between Start/Stop and streak/goal content */
-  #timerControlsWrap .timer-controls{ margin-bottom:10px; }
-  #goalCard{ margin-top:4px; }
-  /* Make group controls reliably clickable above the people row */
-  #peopleGroupChip, #peopleGroupChip *{
-    position:relative; z-index:30;
-    pointer-events:auto !important;
-  }
-  .people-group-chip{ cursor:pointer; touch-action:manipulation; }
   /* ---------- distraction-free focus mode ---------- */
   .focus-toggle-btn{
-    display:none; width:100%; margin-top:18px; background:var(--accent-dim); border:1px solid var(--accent);
+    display:none; width:100%; margin-top:12px; background:var(--accent-dim); border:1px solid var(--accent);
     color:var(--accent); font-size:13px; font-weight:700; padding:11px 0; border-radius:12px; cursor:pointer; letter-spacing:0.3px;
     position:relative; z-index:2;
   }
@@ -506,7 +495,7 @@
 
   body.focus-active{ background:#0A0C11; }
   body.focus-active header.top,
-  body.focus-active .group-bar,
+  body.focus-active .group-people-row,
   body.focus-active .people-row,
   body.focus-active .snap-row,
   body.focus-active nav.tabs,
@@ -531,15 +520,25 @@
     padding-bottom:6px; border-bottom:1px solid var(--card-line);
   }
   .week-nav{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
     margin:6px 0 18px; background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:8px 6px;
   }
   .week-nav-arrow{
-    width:36px; height:36px; border-radius:10px; background:none; border:none; color:var(--chalk);
+    width:32px; height:32px; border-radius:10px; background:none; border:none; color:var(--chalk);
     font-size:18px; cursor:pointer; flex:0 0 auto;
   }
   .week-nav-arrow:active{ background:var(--accent-dim); }
-  .week-nav-label{ flex:1; text-align:center; font-family:'Kalam'; font-size:15px; color:var(--chalk); }
+  .week-nav-mid{ flex:1; min-width:0; text-align:center; }
+  .week-nav-dates{
+    display:flex; align-items:center; justify-content:space-between; font-family:'JetBrains Mono';
+    font-size:10.5px; color:var(--chalk-faint); padding:0 4px;
+  }
+  .week-nav-sep{ opacity:0.5; }
+  .week-nav-label{ font-family:'Kalam'; font-size:15px; color:var(--chalk); }
+  .week-nav-pen{
+    width:30px; height:30px; border-radius:10px; background:none; border:none; color:var(--chalk-faint);
+    font-size:13px; cursor:pointer; flex:0 0 auto;
+  }
   .week-day h4{
     font-family:'Kalam'; font-size:17px; margin:0 0 8px; color:var(--chalk);
     display:flex; align-items:center; gap:8px;
@@ -580,22 +579,25 @@
   .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
 
-  /* ---------- Group switcher bar ---------- */
-  .group-bar{
-    display:none; align-items:center; gap:8px; width:calc(100% - 32px); margin:0 16px 12px;
+  /* ---------- Group + people, merged into one row ---------- */
+  .group-people-row{
+    display:flex; align-items:center; gap:8px; padding:0 16px 14px; overflow-x:auto; scrollbar-width:none;
   }
-  .group-bar-main{
-    flex:1; display:flex; align-items:center; justify-content:space-between; min-width:0;
-    background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:10px 14px;
-    color:var(--chalk); font-size:13px; font-weight:600; cursor:pointer;
+  .group-people-row::-webkit-scrollbar{ display:none; }
+  .group-chip{
+    flex:0 0 auto; display:flex; align-items:center; gap:6px; max-width:130px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; color:var(--chalk);
   }
-  .group-bar-main span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .group-bar-info{
-    flex:0 0 auto; width:38px; height:38px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
-    color:var(--chalk-dim); font-size:16px; cursor:pointer; line-height:1;
+  .group-chip span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .group-chip .group-bar-arrow{ margin-left:0; }
+  .group-chip-info{
+    flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:14px; cursor:pointer; line-height:1;
   }
-  .group-bar-arrow{ color:var(--chalk-faint); font-size:11px; flex:0 0 auto; margin-left:6px; }
-  .group-bar .deadline-tag, .group-bar-main .deadline-tag{ font-size:10px; font-weight:600; color:var(--c1); margin-left:8px; }
+  .row-divider{ flex:0 0 auto; width:1px; height:26px; background:var(--card-line); margin:0 2px; }
+  .group-bar-arrow{ color:var(--chalk-faint); font-size:11px; flex:0 0 auto; }
+  .deadline-tag{ font-size:10px; font-weight:600; color:var(--c1); margin-left:4px; }
 
   .grp-list-item{
     display:flex; align-items:center; justify-content:space-between; background:var(--card);
@@ -629,32 +631,10 @@
   .switch input:checked + .slider{ background:var(--accent); }
   .switch input:checked + .slider:before{ transform:translateX(18px); }
 
-  /* ---------- People switcher ---------- */
+  /* ---------- People switcher (now nested inside .group-people-row) ---------- */
   .people-row{
-    display:flex; gap:8px; overflow-x:auto; padding:0 16px 14px; scrollbar-width:none;
+    display:flex; gap:8px; flex:0 0 auto;
   }
-  .people-row::-webkit-scrollbar{ display:none; }
-  .people-group-chip{
-    flex:0 0 auto; display:flex; align-items:center; gap:6px;
-    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
-    padding:6px 9px; cursor:pointer; color:var(--chalk); font-size:11px; font-weight:700;
-  }
-  .people-group-chip .group-mini{ max-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .people-group-chip .group-mini-info{ width:20px; height:20px; border:0; border-radius:50%; background:transparent; color:var(--chalk-faint); font-size:14px; cursor:pointer; padding:0; }
-  .timer-link-row{ display:flex; align-items:center; gap:8px; margin:-4px 0 14px; }
-  .timer-link-btn{ width:30px; height:30px; flex:0 0 auto; border-radius:9px; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); cursor:pointer; font-size:14px; }
-  .timer-link-btn.linked{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
-  .timer-link-label{ flex:1; min-width:0; font-size:11px; color:var(--chalk-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .task-actions{ width:30px; height:30px; flex:0 0 auto; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); border-radius:9px; cursor:pointer; font-size:18px; }
-  .task-progress-donut{ width:34px; height:34px; position:relative; flex:0 0 auto; }
-  .task-progress-donut svg{ width:100%; height:100%; transform:rotate(-90deg); }
-  .task-progress-donut .track{ fill:none; stroke:var(--card-line); stroke-width:4; }
-  .task-progress-donut .fill{ fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; }
-  .task-progress-donut .pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:var(--chalk); }
-  .week-nav-label-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; min-width:0; }
-  .week-nav-label-row{ display:flex; align-items:center; gap:6px; }
-  .week-nav-pen{ border:0; background:none; color:var(--chalk-faint); font-size:12px; cursor:pointer; padding:2px; }
-  .week-nav-range{ display:flex; justify-content:space-between; width:100%; padding:0 4px; font-size:9px; color:var(--chalk-faint); font-family:'JetBrains Mono'; }
   .person-chip{
     flex:0 0 auto; display:flex; align-items:center; gap:7px;
     background:var(--card); border:1px solid var(--card-line); border-radius:20px;
@@ -961,79 +941,8 @@
   }
   .cmt-item{ font-size:13px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
   .cmt-item b{ color:var(--accent); }
-
-  /* ---------- v6 NOW / LIVE layout ---------- */
-  .group-bar{ display:none !important; }
-  .shared-people-wrap{ display:flex; align-items:center; gap:6px; margin:0 16px 12px; position:relative; z-index:6; }
-  .shared-people-row{ flex:1; min-width:0; padding:0 0 2px; }
-  .people-collapse-btn{ flex:0 0 auto; width:28px; height:46px; border-radius:12px; background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint); cursor:pointer; font-size:18px; line-height:1; }
-  .people-collapse-btn:active{ background:var(--accent-dim); color:var(--accent); }
-  .shared-people-wrap.collapsed .shared-people-row{ display:none; }
-  .shared-people-wrap.collapsed .people-collapse-btn{ width:30px; margin-left:auto; }
-  .live-group-shell{ margin:0 0 14px; }
-  .live-group-head{ display:flex; justify-content:flex-start; }
-  .live-group-btn{
-    width:100%; display:flex; align-items:center; gap:9px; padding:9px 12px;
-    border-radius:16px; background:var(--card); border:1px solid var(--card-line);
-    color:var(--chalk); cursor:pointer; touch-action:manipulation; text-align:left;
-    box-shadow:0 5px 18px rgba(0,0,0,.14);
-  }
-  .live-group-btn:active{ transform:scale(.985); }
-  .live-group-icon{ width:28px; height:28px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent); flex:0 0 auto; font-size:15px; }
-  .live-group-label{ min-width:0; flex:1; font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .live-group-chevron{ color:var(--chalk-faint); font-size:12px; }
-  .live-group-btn.minimal{ width:auto; padding:5px 9px 5px 6px; border-radius:13px; }
-  .live-group-btn.minimal .live-group-icon{ width:24px; height:24px; border-radius:8px; font-size:13px; }
-  .live-group-btn.minimal .live-group-label{ flex:0 0 auto; font-size:11px; }
-  .live-people-row{ padding:0 0 4px; margin-top:8px; }
-  .live-people-row .people-group-chip{ display:none !important; }
-
-  /* The group selector has moved to Live; NOW is deliberately uncluttered. */
-  .timer-top-actions{ display:none !important; }
-  .timer-ring-wrap{ position:relative; padding-top:8px; margin-bottom:8px; }
-  .timer-frame-focus-btn{
-    display:none; position:absolute; right:4px; top:4px; z-index:30;
-    width:auto; min-width:88px; height:38px; padding:0 12px; border-radius:19px;
-    align-items:center; justify-content:center; gap:5px; font-size:12px; font-weight:800;
-    background:var(--c4); border:1px solid rgba(184,160,217,.8); color:#171321;
-    box-shadow:0 6px 18px rgba(0,0,0,.18);
-  }
-  .timer-frame-focus-btn.visible{ display:flex; }
-  .timer-frame-focus-btn::first-letter{ font-size:18px; }
-  .timer-link-float-wrap{
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:4px; margin:2px 0 10px; min-height:48px;
-  }
-  .timer-link-float{
-    width:44px; height:44px; border-radius:50%; border:1px solid rgba(232,196,104,.62);
-    background:rgba(232,196,104,.14); color:var(--c6); cursor:pointer;
-    display:flex; align-items:center; justify-content:center; font-size:19px;
-    box-shadow:0 6px 15px rgba(0,0,0,.16); touch-action:manipulation;
-  }
-  .timer-link-float.linked{ background:rgba(34,211,238,.16); border-color:var(--accent); color:var(--accent); }
-  .timer-link-float-status{ font-size:9px; color:var(--chalk-faint); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  body.focus-active .timer-link-float-wrap,
-  body.focus-active .timer-frame-focus-btn{ display:none !important; }
-  #timerControlsWrap .timer-controls{ margin-bottom:16px; }
-  .timer-link-center{ flex:0 0 64px; min-width:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; margin:0 2px; }
-  .timer-link-center .timer-link-float{ width:52px; height:52px; border-radius:50%; }
-  .timer-link-center .timer-link-float-status{ max-width:74px; text-align:center; }
-  #timerControlsWrap .timer-controls{ align-items:center; margin-bottom:18px; }
-
-  #goalCard{ margin-top:8px; }
-
-  /* Group action sheet */
-  .group-action-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px; }
-  .group-action-grid button{ min-height:62px; }
-  .group-action-grid .wide{ grid-column:1 / -1; }
-  .group-edit-members{ max-height:180px; overflow:auto; border:1px solid var(--card-line); border-radius:12px; padding:4px 10px; background:var(--board); }
-  .group-edit-member{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--card-line); font-size:12px; }
-  .group-edit-member:last-child{ border-bottom:none; }
-  .group-edit-member button{ border:0; background:none; color:var(--danger); cursor:pointer; font-size:12px; }
-
 </style>
 </head>
-<!-- Studyboard v6 layout patch -->
 <body>
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
@@ -1078,10 +987,14 @@
     </div>
   </header>
 
-  <!-- User profile row for NOW / TODAY / WEEK. Group controls stay only on LIVE. -->
-  <div class="shared-people-wrap" id="sharedPeopleWrap">
-    <div class="people-row shared-people-row" id="peopleRow"></div>
-    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people">‹</button>
+  <div class="group-people-row">
+    <button class="group-chip" id="groupBar">
+      <span id="groupBarLabel">Loading…</span>
+      <span class="group-bar-arrow">▾</span>
+    </button>
+    <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
+    <div class="row-divider"></div>
+    <div class="people-row" id="peopleRow"></div>
   </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
@@ -1094,22 +1007,33 @@
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
       <div id="timerControlsWrap">
-        <div class="mode-switch" id="timerModeSwitch">
+        <div class="mode-switch">
           <button id="modeStopwatch" class="active">Stopwatch</button>
           <button id="modeCountdown">Focus Timer</button>
         </div>
 
-        <div class="timer-options-row" id="timerOptionsRow">
-          <div class="dur-chip-row" id="countdownLenChips" style="display:none;">
-            <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag">Focus</span></div>
-            <div class="dur-chip sel" data-min="60"><span class="dur-min">1 hour</span><span class="dur-tag">Focus</span></div>
-            <div class="dur-chip" data-custom="1"><span class="dur-min">Custom</span><span class="dur-tag">hour : minute</span></div>
+        <div class="field-row">
+          <label>Subject</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="timerSubject" style="flex:1;"></select>
+            <button type="button" class="task-pin-btn" id="taskPinBtn" title="Link to a daily task (optional)">📌</button>
+          </div>
+          <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
+        </div>
+
+        <div class="field-row" id="countdownLenRow" style="display:none;">
+          <label>Length</label>
+          <div class="dur-chip-row" id="countdownLenChips">
+            <div class="dur-chip" data-preset="30"><span class="dur-min">30 min</span></div>
+            <div class="dur-chip sel" data-preset="60"><span class="dur-min">1 hour</span></div>
+            <div class="dur-chip" data-preset="custom"><span class="dur-min">Custom</span></div>
+          </div>
+          <div id="customLenWrap" style="display:none; margin-top:10px;">
+            <div id="customLenWheel"></div>
           </div>
         </div>
-        <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
 
         <div class="timer-ring-wrap">
-          <button type="button" class="focus-toggle-btn timer-frame-focus-btn" id="focusToggleBtn" title="Enter focus mode">🧘 Focus</button>
           <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
@@ -1130,13 +1054,9 @@
 
         <div class="timer-controls">
           <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
-          <div class="timer-link-center" id="timerLinkFloatWrap">
-            <button type="button" class="timer-link-float" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
-            <span class="timer-link-float-status" id="timerTaskLinkLabel">Not linked</span>
-          </div>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
-
+        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
       </div>
 
       <div class="goal-card" id="goalCard" style="display:none;"></div>
@@ -1157,8 +1077,12 @@
     <section class="screen" id="screen-week">
       <div class="week-nav" id="weekNav">
         <button class="week-nav-arrow" id="weekPrev">‹</button>
-        <div class="week-nav-label-wrap"><div class="week-nav-label-row"><div class="week-nav-label" id="weekNavLabel">This week</div><button class="week-nav-pen" id="weekStartPen" title="Choose week start">✎</button></div><div class="week-nav-range"><span id="weekStartRange">Sun</span><span id="weekEndRange">Sat</span></div></div>
+        <div class="week-nav-mid">
+          <div class="week-nav-dates"><span id="weekNavStart"></span><span class="week-nav-sep">–</span><span id="weekNavEnd"></span></div>
+          <div class="week-nav-label" id="weekNavLabel">This week</div>
+        </div>
         <button class="week-nav-arrow" id="weekNext">›</button>
+        <button type="button" class="week-nav-pen" id="weekStartDayBtn" title="Change week start day">✏️</button>
       </div>
       <div class="wk-section-head">
         <h2>Weekly Targets</h2>
@@ -1168,16 +1092,6 @@
 
     <!-- LIVE SCREEN -->
     <section class="screen" id="screen-live">
-      <div class="live-group-shell" id="liveGroupShell">
-        <div class="live-group-head">
-          <button type="button" class="live-group-btn" id="liveGroupBtn">
-            <span class="live-group-icon" id="liveGroupIcon">👥</span>
-            <span class="live-group-label" id="liveGroupLabel">Loading…</span>
-            <span class="live-group-chevron">▾</span>
-          </button>
-        </div>
-        <div class="people-row live-people-row" id="livePeopleRow"></div>
-      </div>
       <div class="live-mini-timer" id="liveMiniTimer">
         <div class="lmt-digits" id="liveMiniDigits">00:00:00</div>
         <div class="lmt-controls">
@@ -1246,7 +1160,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -1372,11 +1286,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label}
     dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
     completion: {},     // { 'YYYY-MM-DD|blockId': true }
-    sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
+    sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note, linkedTaskId} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
     weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
-    focusPresetNames: ['30 min','1 hour','custom'],
-    weekStartDay: 0
+    weekStartDay: 0 // 0=Sunday .. 6=Saturday — which day every week view starts on
   };
 
   let selectedDate = new Date();
@@ -1553,19 +1466,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
-    await loadNotificationSettings();
     await loadMyGroupIds();
     await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
-    renderFocusPresetNames();
+    renderTaskPinLabel();
     render();
     startLiveTimers();
     subscribeSelfLiveStatus();
     subscribeSelfNudges();
     subscribeOwnBoard();
     renderSnapRow();
-    scheduleLocalTaskAlerts();
     setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
     refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
@@ -1597,20 +1508,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
-    const notifDefs = [
-      ['timerEnd','Timer ending','Alert when a focus timer finishes'],
-      ['taskApproaching','Task approaching','5-minute reminder before a scheduled task'],
-      ['studyStart','Someone starts studying','Alert when someone in your active group starts studying'],
-      ['taskComment','Tasks & comments','Alert when someone adds a task or comment'],
-      ['groupChanges','Group changes','Alert when someone joins or leaves your group']
-    ];
-    const notifBox=backdrop.querySelector('#acct-notif-settings');
-    notifBox.innerHTML=notifDefs.map(([key,label,desc])=>`<div class="field-row" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;"><div style="min-width:0;"><div style="font-size:12px;color:var(--chalk);">${label}</div><div style="font-size:10px;color:var(--chalk-faint);">${desc}</div></div><label class="switch"><input type="checkbox" data-notif-key="${key}" ${notificationSettings[key]?'checked':''}><span class="switch-slider"></span></label></div>`).join('');
-    const pushBtn=backdrop.querySelector('#acct-enable-push');
-    pushBtn.addEventListener('click', async()=>{
-      const r=await enablePushNotifications();
-      pushBtn.textContent = r.ok ? '✅ System notifications enabled' : (r.reason==='denied' ? '⚠️ Permission blocked in browser settings' : `🔔 Enable / repair system notifications${r.detail?' — '+r.detail:''}`);
-    });
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('#ql-cancel').addEventListener('click', close);
     backdrop.querySelector('#ql-join').addEventListener('click', async ()=>{
@@ -1808,11 +1705,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="number" id="acct-goal-weekly" value="${(state.goals&&state.goals.weeklyMin)? (state.goals.weeklyMin/60) : 0}" min="0" step="0.5">
         </div>
         <div class="section-divider"></div>
-        <h4 class="modal-subhead">Notifications & reminders</h4>
-        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 10px;">Choose which alerts you receive. Browser/system push also requires Notifications permission.</div>
-        <div id="acct-notif-settings"></div>
-        <button class="btn btn-ghost" id="acct-enable-push" style="width:100%; margin:8px 0 10px;">🔔 Enable / repair system notifications</button>
-        <div class="section-divider"></div>
         <h4 class="modal-subhead">Camera & Snapshots</h4>
         <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
           <label style="margin:0;">Share live snapshots while studying</label>
@@ -1904,10 +1796,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       state.goals = { dailyMin, weeklyMin };
       await flushStateNow();
 
-      const nextNotifSettings = Object.assign({}, notificationSettings);
-      backdrop.querySelectorAll('[data-notif-key]').forEach(inp=> nextNotifSettings[inp.dataset.notifKey] = inp.checked);
-      await saveNotificationSettings(nextNotifSettings);
-
       const wasEnabled = snapSettings.enabled;
       snapSettings.enabled = backdrop.querySelector('#acct-snap-enabled').checked;
       snapSettings.facing = pickedFacing;
@@ -1933,131 +1821,32 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- notifications ----------
   const NOTIF_LIMIT = 60;
-  const DEFAULT_NOTIFICATION_SETTINGS = {
-    timerEnd: true,
-    taskApproaching: true,
-    studyStart: true,
-    taskComment: true,
-    groupChanges: true
-  };
-  let notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS);
-  let notificationSettingsLoaded = false;
-  async function loadNotificationSettings(){
-    if(!me) return notificationSettings;
-    try{
-      const snap = await getDoc(doc(db,'notificationSettings',me.id));
-      notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, snap.exists()?snap.data():{});
-    }catch(e){
-      notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS);
-    }
-    notificationSettingsLoaded = true;
-    return notificationSettings;
-  }
-  async function saveNotificationSettings(next){
-    notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, next||{});
-    if(me){
-      try{ await setDoc(doc(db,'notificationSettings',me.id), notificationSettings, {merge:true}); }catch(e){ console.warn('notification settings save failed',e); }
-    }
-  }
-  function notificationCategoryEnabled(category){
-    if(category==='timerEnd') return notificationSettings.timerEnd;
-    if(category==='taskApproaching') return notificationSettings.taskApproaching;
-    if(category==='studyStart') return notificationSettings.studyStart;
-    if(category==='taskComment') return notificationSettings.taskComment;
-    if(category==='groupChanges') return notificationSettings.groupChanges;
-    return true;
-  }
-  async function showLocalSystemNotification(title, body, category){
-    if(!notificationCategoryEnabled(category)) return;
-    try{
-      if(!('Notification' in window) || Notification.permission!=='granted') return;
-      if(swRegistration){
-        await swRegistration.showNotification(title, {body, icon:'./icons/icon-192.png', badge:'./icons/icon-192.png', data:{url:'./index.html'}, vibrate:[100,50,100]});
-      } else {
-        new Notification(title, {body});
-      }
-    }catch(e){ console.warn('local notification failed',e); }
-  }
-  function scheduleLocalTaskAlerts(){
-    if(window.__taskAlertHandle) clearInterval(window.__taskAlertHandle);
-    const check=()=>{
-      if(!me || !notificationSettings.taskApproaching) return;
-      const now=Date.now();
-      const dateKey=fmtDate(new Date());
-      const tasks=blocksForDateIn(state,new Date());
-      tasks.forEach(t=>{
-        if(!t.start) return;
-        const parts=String(t.start).split(':').map(Number);
-        if(parts.length<2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return;
-        const due=new Date(); due.setHours(parts[0],parts[1],0,0);
-        const diff=due.getTime()-now;
-        if(diff>=4*60*1000 && diff<=6*60*1000){
-          const key='sb-task-alert:'+dateKey+':'+t.id;
-          if(localStorage.getItem(key)) return;
-          localStorage.setItem(key,'1');
-          const label=t.label||subjectNameIn(t.subject,state);
-          pushNotification(me.id, `Task starting in 5 minutes: ${label}`, 'taskApproaching');
-          showLocalSystemNotification('Study Board', `Task starting in 5 minutes: ${label}`, 'taskApproaching');
-        }
-      });
-    };
-    check();
-    window.__taskAlertHandle=setInterval(check,30000);
-  }
-  function armLocalTimerEndAlert(){
-    if(window.__timerAlertHandle) clearTimeout(window.__timerAlertHandle);
-    if(!notificationSettings.timerEnd || timerMode!=='countdown' || !timerRunning) return;
-    const remaining=Math.max(0, countdownTotalMs-elapsedMs);
-    if(remaining<=0) return;
-    window.__timerAlertHandle=setTimeout(()=>{
-      if(!timerRunning || timerMode!=='countdown') return;
-      pushNotification(me.id, 'Focus timer finished 🎉', 'timerEnd');
-      showLocalSystemNotification('Focus timer finished', 'Your focus timer is complete.', 'timerEnd');
-    }, remaining+250);
-  }
-  function clearLocalTimerEndAlert(){ if(window.__timerAlertHandle){ clearTimeout(window.__timerAlertHandle); window.__timerAlertHandle=null; } }
-  async function writeTimerSchedule(active){
-    if(!me) return;
-    try{
-      await setDoc(doc(db,'timerSchedules',me.id), {
-        active:!!active,
-        endsAt: active && timerMode==='countdown' ? Date.now()+Math.max(0,countdownTotalMs-elapsedMs) : null,
-        title: linkedTaskId ? ((blocksForDateIn(state,new Date()).find(t=>t.id===linkedTaskId)||{}).label || 'Focus timer') : 'Focus timer',
-        updatedAt:Date.now()
-      }, {merge:true});
-    }catch(e){ console.warn('timer schedule write failed',e); }
-  }
   async function loadNotifications(uid){
     try{
       const snap = await getDoc(doc(db, 'notifications', uid));
       return snap.exists() ? (snap.data().items || []) : [];
     }catch(e){ return []; }
   }
-  async function pushNotification(uid, text, category='taskComment', meta={}){
+  async function pushNotification(uid, text){
     if(!uid) return;
     try{
-      const now=Date.now();
       const items = await loadNotifications(uid);
-      items.push({ text, ts: now, read:false, category, ...meta });
+      items.push({ text, ts: Date.now(), read:false });
       while(items.length > NOTIF_LIMIT) items.shift();
       await setDoc(doc(db, 'notifications', uid), { items });
-      const eventId = `${now}_${Math.random().toString(36).slice(2,8)}`;
-      await setDoc(doc(db,'notificationEvents',uid,'events',eventId), {
-        text, category, createdAt: now, url:'./index.html', ...meta
-      });
     }catch(e){ console.error('notify failed', e); }
   }
-  async function notifyOthers(text, excludeId, category='taskComment'){
+  async function notifyOthers(text, excludeId){
     const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
-    for(const u of targets){ await pushNotification(u.id, text, category); }
+    for(const u of targets){ await pushNotification(u.id, text); }
   }
   async function notifyForComment(cid, title, text){
     const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
     if(cid.startsWith('p_')){
       const ownerId = cid.split('_')[1];
-      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`, 'taskComment');
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
     } else if(cid.startsWith('s_')){
-      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`, null, 'taskComment');
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
     }
   }
   async function refreshBellBadge(){
@@ -2132,103 +1921,25 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-
-  // ---------- v6 Live group controller ----------
-  let liveGroupUsersHidden = false;
-  function liveGroupHideKey(){ return activeGroupId ? 'sb-live-group-hidden:'+activeGroupId : 'sb-live-group-hidden:none'; }
-  function loadLiveGroupHidden(){
-    try{ liveGroupUsersHidden = localStorage.getItem(liveGroupHideKey()) === '1'; }catch(e){ liveGroupUsersHidden = false; }
-  }
-  function saveLiveGroupHidden(){
-    try{ localStorage.setItem(liveGroupHideKey(), liveGroupUsersHidden ? '1' : '0'); }catch(e){}
-  }
-  function renderLiveGroupPanel(){
-    const btn = document.getElementById('liveGroupBtn');
-    const label = document.getElementById('liveGroupLabel');
-    const icon = document.getElementById('liveGroupIcon');
-    const row = document.getElementById('livePeopleRow');
-    if(!btn || !label || !icon) return;
+  function renderGroupBar(){
+    const label = document.getElementById('groupBarLabel');
+    if(!label) return;
     if(!activeGroupData){
-      label.textContent = 'Create or join a group';
-      icon.textContent = '＋';
-      btn.classList.add('minimal');
-      if(row) row.style.display = '';
+      label.textContent = 'No group — tap to create or join one';
       return;
     }
-    if(liveGroupUsersHidden){
-      btn.classList.add('minimal');
-      icon.textContent = '👤';
-      label.textContent = me ? me.name : 'You';
-      if(row) row.style.display = 'none';
-    }else{
-      btn.classList.remove('minimal');
-      icon.textContent = '👥';
-      label.textContent = activeGroupData.name || 'Group';
-      if(row) row.style.display = currentScreen==='live' ? '' : 'none';
+    let deadlineTag = '';
+    if(activeGroupData.deadlineAt){
+      const ended = Date.now() > activeGroupData.deadlineAt;
+      const d = new Date(activeGroupData.deadlineAt);
+      deadlineTag = `<span class="deadline-tag">${ended ? 'ENDED' : 'ends '+MONTHS[d.getMonth()]+' '+d.getDate()}</span>`;
     }
+    label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
-  function openLiveGroupMenu(){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>${escapeHtml(activeGroupData?.name || 'Group')}</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 12px;">Manage the active Live group.</div><div class="group-action-grid"><button class="btn btn-ghost" id="lg-edit">✎<br><small>Edit</small></button><button class="btn btn-ghost" id="lg-share">↗<br><small>Share</small></button><button class="btn btn-ghost" id="lg-hide">◉<br><small>${liveGroupUsersHidden?'Show people':'Hide people'}</small></button><button class="btn btn-primary" id="lg-switch">⇄<br><small>Switch / Create</small></button></div></div>`;
-    document.body.appendChild(backdrop);
-    const close=()=>backdrop.remove();
-    backdrop.querySelector('.close-x').addEventListener('click',close);
-    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#lg-edit').addEventListener('click',()=>{close(); openGroupEditModal(activeGroupId);});
-    backdrop.querySelector('#lg-share').addEventListener('click',()=>{close(); openGroupShareModal(activeGroupId);});
-    backdrop.querySelector('#lg-hide').addEventListener('click',()=>{liveGroupUsersHidden=!liveGroupUsersHidden; saveLiveGroupHidden(); renderLiveGroupPanel(); renderPeopleRow(); close();});
-    backdrop.querySelector('#lg-switch').addEventListener('click',()=>{close(); openGroupsModal();});
-  }
-  async function openGroupShareModal(groupId){
-    if(!groupId) return;
-    let g=activeGroupData;
-    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
-    if(!g) return;
-    const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;
-    const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase;margin-bottom:4px;">Access code</div><div class="code">${escapeHtml(g.inviteCode||'')}</div><img src="${qrUrl}" alt="QR code"><button class="btn btn-ghost" id="lg-copy" style="width:100%;margin-top:6px;">Copy invite link</button></div><div style="font-size:11px;color:var(--chalk-faint);word-break:break-all;">${escapeHtml(inviteUrl)}</div></div>`;
-    document.body.appendChild(backdrop);
-    const close=()=>backdrop.remove();
-    backdrop.querySelector('.close-x').addEventListener('click',close);
-    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#lg-copy').addEventListener('click',()=>{navigator.clipboard?.writeText(inviteUrl).catch(()=>{}); const b=backdrop.querySelector('#lg-copy'); const old=b.textContent; b.textContent='Copied ✓'; setTimeout(()=>b.textContent=old,1200);});
-  }
-  async function openGroupEditModal(groupId){
-    if(!groupId) return;
-    let g=activeGroupData;
-    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
-    if(!g) return;
-    const isOwner=g.ownerId===me.id;
-    const members=Object.keys(g.members||{});
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit group</h3><div class="field-row"><label>Group name</label><input id="lge-name" type="text" value="${escapeHtml(g.name||'')}"></div><div class="field-row"><label>Daily target (hours)</label><input id="lge-daily" type="number" min="0" step="0.5" value="${Number(g.dailyGoalHours||0)}"></div><div class="field-row"><label>Weekly target (hours)</label><input id="lge-weekly" type="number" min="0" step="0.5" value="${Number(g.weeklyGoalHours||0)}"></div><div class="field-row"><label>Deadline</label><input id="lge-deadline" type="date" value="${g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):''}"></div><h4 style="margin:16px 0 6px;font-family:'Kalam';font-size:14px;color:var(--chalk-dim);font-weight:400;">Members</h4><div class="group-edit-members" id="lge-members"></div><div class="modal-actions"><button class="btn btn-ghost" id="lge-cancel">Cancel</button><button class="btn btn-primary" id="lge-save">Save</button></div>${isOwner?'<button class="btn btn-danger" id="lge-delete" style="width:100%;margin-top:8px;">Delete group</button>':''}</div>`;
-    document.body.appendChild(backdrop);
-    const close=()=>backdrop.remove();
-    backdrop.querySelector('.close-x').addEventListener('click',close);
-    backdrop.querySelector('#lge-cancel').addEventListener('click',close);
-    const membersWrap=backdrop.querySelector('#lge-members');
-    membersWrap.innerHTML=members.map(uid=>{const p=profileFor(uid); return `<div class="group-edit-member"><span>${escapeHtml(p.name)}${uid===me.id?' (you)':''}${uid===g.ownerId?' 👑':''}</span>${isOwner&&uid!==me.id?`<button type="button" data-remove="${uid}">Remove</button>`:''}</div>`;}).join('')||'<div style="padding:10px;color:var(--chalk-faint);">No members.</div>';
-    membersWrap.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{await removeMemberFromGroup(groupId,b.dataset.remove); openGroupEditModal(groupId); close();}));
-    backdrop.querySelector('#lge-save').addEventListener('click',async()=>{
-      const name=backdrop.querySelector('#lge-name').value.trim(); if(!name){alert('Group name is required.');return;}
-      const deadlineStr=backdrop.querySelector('#lge-deadline').value;
-      const patch={name,dailyGoalHours:parseFloat(backdrop.querySelector('#lge-daily').value)||0,weeklyGoalHours:parseFloat(backdrop.querySelector('#lge-weekly').value)||0,deadlineAt:deadlineStr?new Date(deadlineStr+'T23:59:59').getTime():null};
-      await setDoc(doc(db,'groups',groupId),patch,{merge:true}); close();
-    });
-    const del=backdrop.querySelector('#lge-delete');
-    if(del) del.addEventListener('click',async()=>{if(!confirm('Delete this group permanently?')) return; try{await deleteDoc(doc(db,'groups',groupId)); await deleteDoc(doc(db,'groupMemberships',me.id));}catch(e){alert('Could not delete group: '+e.message);return;} myGroupIds=myGroupIds.filter(id=>id!==groupId); activeGroupId=myGroupIds[0]||null; try{await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});}catch(e){} close(); await subscribeActiveGroup();});
-  }
-
-  function renderGroupBar(){
-    loadLiveGroupHidden();
-    renderLiveGroupPanel();
-  }
-  document.getElementById('liveGroupBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); openLiveGroupMenu(); });
-  document.getElementById('peopleCollapseBtn')?.addEventListener('click', (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    sharedPeopleCollapsed=!sharedPeopleCollapsed;
-    renderPeopleRow();
+  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
+  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
+    if(activeGroupId) openGroupsModal(activeGroupId);
+    else openGroupsModal();
   });
 
   function openGroupsModal(jumpToGroupId){
@@ -2598,15 +2309,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
-    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`, 'groupChanges'); }
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
     return g;
   }
   async function leaveGroup(groupId){
-    try{
-      const snap = await getDoc(doc(db,'groups',groupId));
-      const g = snap.exists() ? snap.data() : null;
-      if(g){ for(const uid of Object.keys(g.members||{})){ if(uid!==me.id) await pushNotification(uid, `${me.name} left "${g.name}"`, 'groupChanges'); } }
-    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
     myGroupIds = myGroupIds.filter(id=>id!==groupId);
     const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
@@ -2614,11 +2320,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setActiveGroup(nextActive);
   }
   async function removeMemberFromGroup(groupId, uid){
-    try{
-      const snap=await getDoc(doc(db,'groups',groupId));
-      const g=snap.exists()?snap.data():null;
-      if(g){ const p=profileFor(uid); for(const memberId of Object.keys(g.members||{})){ if(memberId!==uid) await pushNotification(memberId, `${p.name} left "${g.name}"`, 'groupChanges'); } }
-    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [uid]: deleteField() } }, { merge:true }); }catch(e){}
   }
   async function extendGroupDeadline(groupId, newDeadlineMs){
@@ -2642,47 +2343,36 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-
-  // v5 fallback for touch/click reliability on the group chip after SPA rerenders.
-  document.getElementById('peopleRow')?.addEventListener('click', (e)=>{
-    const chip=e.target.closest('#peopleGroupChip');
-    if(!chip) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if(typeof openGroupsModal==='function') openGroupsModal();
-  });
-  let sharedPeopleCollapsed = false;
   function renderPeopleRow(){
-    const shared = document.getElementById('peopleRow');
-    const live = document.getElementById('livePeopleRow');
-    const renderInto = (el, visible)=>{
-      if(!el) return;
-      if(!visible || !me){ el.innerHTML=''; el.style.display='none'; return; }
-      el.style.display='flex';
-      const others = usersList.filter(u=>u.id!==me.id);
-      const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-      el.innerHTML = chips.map(c=>{
-        const st = liveCache[c.id];
-        const studying = !!(st && st.studying);
-        const mins = liveMinutesFor(st);
-        const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
-        const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
-        return `<div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${avatarInner}</span><span class="p-meta"><span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span><span class="p-today">${fmtHM(mins)} today</span></span></div>`;
-      }).join('');
-      el.querySelectorAll('.person-chip').forEach(chip=>chip.addEventListener('click', async ()=>{
-        const id=chip.dataset.id;
-        if(id===me.id){ viewingId=null; render(); return; }
-        viewingId=id; await fetchFriendBoard(id); render();
-      }));
-    };
-    renderInto(shared, currentScreen!=='live');
-    renderInto(live, currentScreen==='live' && !liveGroupUsersHidden);
-    const wrap=document.getElementById('sharedPeopleWrap');
-    if(wrap){
-      wrap.classList.toggle('collapsed', sharedPeopleCollapsed && currentScreen!=='live');
-      const b=document.getElementById('peopleCollapseBtn');
-      if(b) b.textContent = sharedPeopleCollapsed ? '›' : '‹';
-    }
+    const el = document.getElementById('peopleRow');
+    if(!me){ el.innerHTML=''; return; }
+    const others = usersList.filter(u=>u.id!==me.id);
+    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
+    el.innerHTML = chips.map(c=>{
+      const st = liveCache[c.id];
+      const studying = !!(st && st.studying);
+      const mins = liveMinutesFor(st);
+      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
+      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
+      return `
+        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
+          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
+          <span class="p-meta">
+            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
+            <span class="p-today">${fmtHM(mins)} today</span>
+          </span>
+        </div>
+      `;
+    }).join('');
+    el.querySelectorAll('.person-chip').forEach(chip=>{
+      chip.addEventListener('click', async ()=>{
+        const id = chip.dataset.id;
+        if(id === me.id){ viewingId = null; render(); return; }
+        viewingId = id;
+        await fetchFriendBoard(id);
+        render();
+      });
+    });
   }
 
   function renderSnapRow(){
@@ -2806,34 +2496,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return s ? s.name : 'General';
   }
 
-  function getWeekStartDay(){ return Number.isInteger(state.weekStartDay) ? state.weekStartDay : 0; }
-  function parseDateKey(key){
-    const [y,m,d]=String(key||'').split('-').map(Number);
-    return (y&&m&&d) ? new Date(y,m-1,d) : new Date();
-  }
-  function weekStartKeyWithStart(date,startDay){
-    const d=new Date(date); d.setHours(0,0,0,0);
-    const diff=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-diff);
-    return fmtDate(d);
-  }
-  function migrateWeekStartSetting(oldStart,newStart){
-    if(oldStart===newStart) return;
-    (state.weeklyTemplate||[]).forEach(b=>{
-      if(!b.weekStart) return;
-      const oldWeek=parseDateKey(b.weekStart);
-      const actual=new Date(oldWeek); actual.setDate(actual.getDate()+Number(b.day||0));
-      b.weekStart=weekStartKeyWithStart(actual,newStart);
-    });
-    (state.weeklyGoals||[]).forEach(g=>{
-      if(g.weekStart) g.weekStart=weekStartKeyWithStart(parseDateKey(g.weekStart),newStart);
-    });
-  }
   function weekStartKey(date){
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    const start = getWeekStartDay();
-    const diff = (d.getDay() - start + 7) % 7;
-    d.setDate(d.getDate() - diff);
+    d.setDate(d.getDate() - d.getDay());
     return fmtDate(d);
   }
   function blocksForDate(date){
@@ -2885,8 +2551,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       render();
-      renderLiveGroupPanel();
-      renderPeopleRow();
     });
   });
   document.getElementById('fabAdd').style.display = 'none';
@@ -2896,18 +2560,75 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let timerRunning = false;
   let elapsedMs = 0;
   let countdownTotalMs = 60*60*1000;
-  let linkedTaskId = null;
-  let customFocusMin = 60;
   let tickHandle = null;
   let lastTick = null;
+  let linkedTaskId = null; // optional: today's task this session's time should count toward
+
+  function renderTaskPinLabel(){
+    const labelEl = document.getElementById('taskPinLabel');
+    const btn = document.getElementById('taskPinBtn');
+    if(!linkedTaskId){
+      labelEl.style.display = 'none';
+      btn.classList.remove('pinned');
+      return;
+    }
+    const todayKey = fmtDate(new Date());
+    const b = blocksForDateIn(state, new Date()).find(x=>x.id===linkedTaskId);
+    labelEl.style.display = 'block';
+    labelEl.textContent = b ? `📌 linked to: ${b.label || subjectNameIn(b.subject, state)}` : '📌 linked task no longer exists today';
+    btn.classList.add('pinned');
+  }
+  function openTaskPinPicker(){
+    if(timerRunning) return;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const todayBlocks = blocksForDateIn(state, new Date());
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Link to a task</h3>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin-bottom:12px;">Optional — track how much of today's timer goes to a specific task.</div>
+        <div id="pin-list"></div>
+        <button class="btn btn-ghost" id="pin-clear" style="width:100%; margin-top:6px;">No link</button>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    const listEl = backdrop.querySelector('#pin-list');
+    if(!todayBlocks.length){
+      listEl.innerHTML = `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">No tasks scheduled for today yet.</div>`;
+    } else {
+      listEl.innerHTML = todayBlocks.map(b=>`
+        <div class="grp-list-item ${b.id===linkedTaskId?'active':''}" data-tid="${b.id}">
+          <div>
+            <div class="name">${escapeHtml(b.label || subjectNameIn(b.subject, state))}</div>
+            <div class="meta">${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+          </div>
+        </div>
+      `).join('');
+      listEl.querySelectorAll('[data-tid]').forEach(item=>{
+        item.addEventListener('click', ()=>{
+          linkedTaskId = item.dataset.tid;
+          renderTaskPinLabel();
+          close();
+        });
+      });
+    }
+    backdrop.querySelector('#pin-clear').addEventListener('click', ()=>{
+      linkedTaskId = null;
+      renderTaskPinLabel();
+      close();
+    });
+  }
+  document.getElementById('taskPinBtn').addEventListener('click', openTaskPinPicker);
 
   function applyModeUI(mode){
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
-    const chips=document.getElementById('countdownLenChips');
-    if(chips) chips.style.display = mode==='countdown' && !timerRunning && elapsedMs===0 ? 'flex' : 'none';
-    if(mode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
+    document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
     updateRunningDeclutter();
@@ -2917,98 +2638,56 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // full Reset/Stop, both options stay visible so you can freely switch your mind.
   function updateRunningDeclutter(){
     const committed = timerRunning || elapsedMs > 0;
-    const modeSwitch=document.getElementById('timerModeSwitch');
-    const optionsRow=document.getElementById('timerOptionsRow');
-    const chips=document.getElementById('countdownLenChips');
-    if(modeSwitch) modeSwitch.classList.toggle('mode-collapsed', committed);
-    // Linked Target is deliberately outside the collapsible setup controls.
-    // Only preset/custom configuration disappears once a session is committed.
-    if(optionsRow) optionsRow.classList.remove('mode-collapsed');
-    if(chips) chips.style.display = (!committed && timerMode==='countdown') ? 'flex' : 'none';
-    const customWheel=document.getElementById('customFocusWheel');
-    if(customWheel){
-      customWheel.style.display = (!committed && timerMode==='countdown' && customWheel.innerHTML) ? 'block' : 'none';
-    }
+    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
+    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
+    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
+      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
+    });
+    const customWrap = document.getElementById('customLenWrap');
+    const customSelected = document.querySelector('#countdownLenChips .dur-chip.sel')?.dataset.preset === 'custom';
+    const hideForRun = committed && timerMode==='countdown';
+    customWrap.style.display = (customSelected && !hideForRun) ? 'block' : 'none';
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
-    if(timerRunning) return; applyModeUI('stopwatch'); elapsedMs=0; renderTimerDigits();
+    if(timerRunning) return;
+    applyModeUI('stopwatch');
+    elapsedMs = 0;
+    renderTimerDigits();
   });
   document.getElementById('modeCountdown').addEventListener('click', ()=>{
-    if(timerRunning) return; applyModeUI('countdown'); elapsedMs=0; renderTimerDigits(); updateRunningDeclutter();
+    if(timerRunning) return;
+    applyModeUI('countdown');
+    elapsedMs = 0;
+    renderTimerDigits();
   });
+  let customLenWheelHandle = null;
+  function initCustomLenWheel(){
+    if(!customLenWheelHandle){
+      customLenWheelHandle = createHourMinWheel(document.getElementById('customLenWheel'), 60);
+    }
+  }
   document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       if(timerRunning) return;
       document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
       chip.classList.add('sel');
-      if(chip.dataset.custom){
-        document.getElementById('customFocusWheel').style.display='block';
-        if(!window.__customFocusWheel) window.__customFocusWheel=createFocusDurationWheel(document.getElementById('customFocusWheel'), customFocusMin);
-        countdownTotalMs=customFocusMin*60000;
-      }else{
-        document.getElementById('customFocusWheel').style.display='none';
-        countdownTotalMs=parseInt(chip.dataset.min,10)*60000;
+      const preset = chip.dataset.preset;
+      const customWrap = document.getElementById('customLenWrap');
+      if(preset==='custom'){
+        customWrap.style.display = 'block';
+        initCustomLenWheel();
+        countdownTotalMs = customLenWheelHandle.getValue() * 60000;
+      } else {
+        customWrap.style.display = 'none';
+        countdownTotalMs = parseInt(preset,10) * 60000;
       }
       renderTimerDigits();
     });
   });
-  document.getElementById('timerTaskPin').addEventListener('click', openTimerTaskPicker);
+  document.getElementById('timerSubject').addEventListener('change', renderRing);
+
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
   document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
-
-
-  function createFocusDurationWheel(container, initialMin){
-    const total = Math.max(1, Math.min(24*60, Number(initialMin)||60));
-    const ih = Math.floor(total/60), im = total%60;
-    container.innerHTML = `<div class="wheel-picker"><div class="wheel-col" id="focus-h"></div><div class="wheel-col" id="focus-m"></div><div class="wheel-highlight"></div></div><div class="wheel-label" style="display:flex;gap:2px;"><span style="flex:1">Hour</span><span style="flex:1">Minute</span></div>`;
-    const hours=Array.from({length:25},(_,i)=>i), mins=Array.from({length:60},(_,i)=>pad(i));
-    let hVal=ih,mVal=im;
-    buildWheelColumn(container.querySelector('#focus-h'), hours, ih, v=>{hVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
-    buildWheelColumn(container.querySelector('#focus-m'), mins, im, v=>{mVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
-    return {getValue:()=>Math.max(1,hVal*60+mVal)};
-  }
-  function renderTimerTaskLink(){
-    const label=document.getElementById('timerTaskLinkLabel'), btn=document.getElementById('timerTaskPin');
-    if(!label||!btn) return;
-    const task=blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId);
-    if(task){
-      label.textContent=`${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min`;
-      btn.title=`Linked to: ${task.label || subjectNameIn(task.subject,state)} (${task.duration||30} min)`;
-    }else{
-      label.textContent='Not linked';
-      btn.title='Link this timer to a daily task';
-    }
-    btn.classList.toggle('linked',!!task);
-    if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
-      countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
-      customFocusMin=Math.max(1,Number(task.duration||30));
-      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
-      document.getElementById('customFocusWheel').style.display='none';
-      renderTimerDigits();
-    }
-  }
-  function openTimerTaskPicker(){
-    if(!isViewingSelf()) return;
-    const today=new Date(), tasks=blocksForDateIn(state,today);
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link to today’s task</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 14px;">Optional — time logged here will update the task automatically.</div><div id="timer-task-options"></div><div class="modal-actions"><button class="btn btn-ghost" id="timer-task-skip">Skip / unlink</button></div></div>`;
-    document.body.appendChild(backdrop); const wrap=backdrop.querySelector('#timer-task-options');
-    wrap.innerHTML=tasks.length ? tasks.map(t=>`<button type="button" class="btn btn-ghost timer-task-option" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;">${escapeHtml(t.label||subjectNameIn(t.subject,state))}<span style="float:right;color:var(--chalk-faint);">${t.duration||30} min</span></button>`).join('') : `<div class="empty" style="padding:20px 0;">No tasks scheduled for today.</div>`;
-    function close(){backdrop.remove();}
-    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#timer-task-skip').addEventListener('click',()=>{linkedTaskId=null;renderTimerTaskLink();close();});
-    wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{
-      linkedTaskId=b.dataset.id;
-      const task=tasks.find(t=>t.id===linkedTaskId);
-      if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
-        countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
-        customFocusMin=Math.max(1,Number(task.duration||30));
-        document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
-        document.getElementById('customFocusWheel').style.display='none';
-      }
-      renderTimerTaskLink(); close();
-    }));
-  }
 
   const RING_R = 100;
   const RING_C = 2 * Math.PI * RING_R;
@@ -3054,8 +2733,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const ring = document.getElementById('ringProgress');
     ring.style.strokeDashoffset = RING_C * (1 - fraction);
     if(me){
-      const task=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
-      ring.style.stroke = task ? subjectColorIn(task.subject,state) : 'var(--accent)';
+      const subjectId = document.getElementById('timerSubject').value;
+      ring.style.stroke = subjectColorIn(subjectId, state);
     }
     document.getElementById('ringOuter').classList.toggle('running', timerRunning);
   }
@@ -3066,23 +2745,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let wakeLockSentinel = null;
   function updateFocusToggleVisibility(){
     const btn = document.getElementById('focusToggleBtn');
-    if(btn) btn.classList.toggle('visible', timerRunning && !document.body.classList.contains('focus-active'));
+    if(btn) btn.classList.toggle('visible', timerRunning);
     if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
   }
   async function enterFocusMode(){
     if(!timerRunning) return; // only enterable once a session is actually running
     document.body.classList.add('focus-active');
-    document.getElementById('timerLinkFloatWrap')?.style.setProperty('display','none','important');
-    document.getElementById('focusToggleBtn')?.style.setProperty('display','none','important');
     if('wakeLock' in navigator){
       try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
     }
   }
   function exitFocusMode(){
     document.body.classList.remove('focus-active');
-    document.getElementById('timerLinkFloatWrap')?.style.removeProperty('display');
-    document.getElementById('focusToggleBtn')?.style.removeProperty('display');
-    updateFocusToggleVisibility();
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
   document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
@@ -3109,33 +2783,31 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const flagKey = 'sb-notified-first-session-'+todayKey;
     if(localStorage.getItem(flagKey)) return;
     localStorage.setItem(flagKey, '1');
-    notifyOthers(`${me.name} started studying today 📚`, null, 'studyStart');
+    notifyOthers(`${me.name} started studying today 📚`);
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
-      const isFreshSessionStart = !sessionStartClock;
       timerRunning = true;
       lastTick = Date.now();
       if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
+      if(timerMode==='countdown'){
+        const selChip = document.querySelector('#countdownLenChips .dur-chip.sel');
+        if(selChip && selChip.dataset.preset==='custom' && customLenWheelHandle){
+          countdownTotalMs = customLenWheelHandle.getValue() * 60000;
+        }
+      }
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
-      const linkedTask=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
-      const subjectId = linkedTask ? linkedTask.subject : '';
+      const subjectId = document.getElementById('timerSubject').value;
       setLiveStatus({
-        studying:true, subject:subjectId, subjectName: subjectId ? subjectNameIn(subjectId, state) : '',
-        linkedTaskId: linkedTaskId || null, mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
+        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
       startSnapshotScheduler();
-      document.getElementById('customFocusWheel').style.display='none';
-      document.getElementById('countdownLenChips').style.display='none';
-      document.getElementById('timerModeSwitch').classList.add('mode-collapsed');
       updateFocusToggleVisibility();
       updateRunningDeclutter();
-      if(isFreshSessionStart) notifyOthers(`${me.name} started studying 📚`, null, 'studyStart');
       notifyFirstSessionOfDayIfNeeded();
-      writeTimerSchedule(true);
-      armLocalTimerEndAlert();
     } else {
       pauseTimer();
     }
@@ -3150,8 +2822,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     updateFocusToggleVisibility();
     updateRunningDeclutter();
-    clearLocalTimerEndAlert();
-    writeTimerSchedule(false);
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
@@ -3277,9 +2947,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     elapsedMs = 0;
     sessionStartClock = null;
     document.getElementById('startBtn').textContent = 'Start';
-    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
-    if(timerMode==='countdown') document.getElementById('countdownLenChips').style.display='flex';
-    document.getElementById('customFocusWheel').style.display='none';
     setStatusText('ready');
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
@@ -3287,19 +2954,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
     updateRunningDeclutter();
-    clearLocalTimerEndAlert();
-    writeTimerSchedule(false);
   }
   function finishSession(completed, reason){
     timerRunning = false;
     clearInterval(tickHandle);
-    clearLocalTimerEndAlert();
-    writeTimerSchedule(false);
     const startedAtMs = sessionStartClock || (Date.now() - elapsedMs);
     const key = fmtDate(new Date(startedAtMs));
     if(!state.sessions[key]) state.sessions[key] = [];
-    const linkedTask=linkedTaskId ? blocksForDateIn(state,parseDateKey(key)).find(b=>b.id===linkedTaskId) : null;
-    const subjectId = linkedTask ? linkedTask.subject : '';
+    const subjectId = document.getElementById('timerSubject').value;
     const durationMin = Math.round(elapsedMs/60000 * 10)/10;
     const endedAt = Date.now();
     let justLoggedSession = null;
@@ -3311,13 +2973,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
         duration: durationMin,
         mode: timerMode,
         completed: completed,
-        linkedTaskId: linkedTaskId || null,
         startedAt: startedAtMs,
-        endedAt: endedAt
+        endedAt: endedAt,
+        linkedTaskId: linkedTaskId || null
       };
       state.sessions[key].push(justLoggedSession);
-      updateLinkedTaskProgress(key, justLoggedSession.linkedTaskId);
       saveState();
+      renderTaskList();
       const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
       if(dailyGoalMin > 0){
         const totalAfter = totalBefore + durationMin;
@@ -3325,7 +2987,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const flagKey = 'sb-notified-goal-'+key;
           if(!localStorage.getItem(flagKey)){
             localStorage.setItem(flagKey, '1');
-            notifyOthers(`${me.name} hit their daily goal today 🔥`, null, 'studyStart');
+            notifyOthers(`${me.name} hit their daily goal today 🔥`);
           }
         }
       }
@@ -3334,14 +2996,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
-    // Restore the normal setup state immediately after a stopped/completed session.
-    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
-    document.getElementById('customFocusWheel').style.display='none';
-    document.getElementById('countdownLenChips').style.display = timerMode==='countdown' ? 'flex' : 'none';
     exitFocusMode();
     renderTimerDigits();
     renderSessions();
-    renderTaskList();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
@@ -3352,26 +3009,50 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   function promptSessionNote(session, dateKey){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    const task= session.linkedTaskId ? blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===session.linkedTaskId) : null;
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>What did you do?</h3><div class="field-row"><label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min${task?' · '+escapeHtml(task.label||subjectNameIn(task.subject,state)):''}</label><textarea id="note-input" rows="3" placeholder="Optional note — you can skip this" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;"></textarea></div><div class="modal-actions"><button class="btn btn-ghost" id="note-skip">Skip</button><button class="btn btn-primary" id="note-save">Save</button></div></div>`;
-    document.body.appendChild(backdrop); function close(){backdrop.remove();}
-    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#note-skip').addEventListener('click',close);
-    backdrop.querySelector('#note-save').addEventListener('click',async()=>{const text=backdrop.querySelector('#note-input').value.trim(); const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(s&&text)s.note=text; await flushStateNow(); renderSessions(); close();});
-  }
-  function updateLinkedTaskProgress(dateKey, taskId){
-    if(!taskId) return;
-    const task=blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===taskId); if(!task) return;
-    const total=(state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
-    const target=Number(task.duration||30);
-    state.completion[dateKey+'|'+task.id] = total >= target ? 'done' : undefined;
-    if(state.completion[dateKey+'|'+task.id]===undefined) delete state.completion[dateKey+'|'+task.id];
-  }
-  function linkedTaskProgress(data,dateKey,task){
-    const target=Number(task.duration||30);
-    const logged=((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===task.id).reduce((sum,s)=>sum+(s.duration||0),0);
-    return {logged,target,pct:target?Math.min(100,Math.round(logged/target*100)):0,done:logged>=target};
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const friend = !isViewingSelf() ? usersList.find(u=>u.id===viewingId) : null;
+    const recapHtml = friend ? `
+        <div class="recap-row">
+          <div class="recap-col mine">
+            <div class="recap-who">You</div>
+            <div class="recap-time">${fmtHM(todayTotalMinutes())}</div>
+            <div class="recap-sub">today</div>
+          </div>
+          <div class="recap-col friend">
+            <div class="recap-who">${escapeHtml(friend.name)}</div>
+            <div class="recap-time">${fmtHM(liveMinutesFor(liveCache[friend.id]))}</div>
+            <div class="recap-sub">today</div>
+          </div>
+        </div>` : '';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>What did you cover?</h3>
+        <div class="field-row">
+          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
+          <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
+        </div>
+        ${recapHtml}
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="note-skip">Skip</button>
+          <button class="btn btn-primary" id="note-save">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#note-skip').addEventListener('click', close);
+    backdrop.querySelector('#note-save').addEventListener('click', async ()=>{
+      const text = backdrop.querySelector('#note-input').value.trim();
+      if(text){
+        const list = state.sessions[dateKey] || [];
+        const s = list.find(x=>x.id===session.id);
+        if(s) s.note = text;
+        await flushStateNow();
+        renderSessions();
+      }
+      close();
+    });
   }
 
   // ---------- live snapshot sharing: settings, camera engine, milestones, nudges ----------
@@ -3629,6 +3310,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         lastTick = Date.now();
         clearInterval(tickHandle);
         tickHandle = setInterval(tick, 250);
+        if(st.subject) document.getElementById('timerSubject').value = st.subject;
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
         renderTimerDigits();
@@ -3790,13 +3472,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
         <div class="field-row">
-          <label>Linked daily target</label>
-          <select id="es-linked">
-            <option value="">Not linked</option>
-            ${blocksForDateIn(state, parseDateKey(dateKey)).map(t=>`<option value="${t.id}" ${session.linkedTaskId===t.id?'selected':''}>${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}
-          </select>
-        </div>
-        <div class="field-row">
           <label>Note</label>
           <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(session.note||'')}</textarea>
         </div>
@@ -3824,16 +3499,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const newSubject = backdrop.querySelector('#es-subject').value;
       const newDuration = Math.max(1, parseInt(backdrop.querySelector('#es-duration').value||'1',10));
       const newNote = backdrop.querySelector('#es-note').value.trim();
-      const newLinked = backdrop.querySelector('#es-linked').value || null;
-      const key = dateKey;
+      const key = fmtDate(new Date());
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){
-        s.linkedTaskId = newLinked;
-        s.subject = newLinked ? ((blocksForDateIn(state, parseDateKey(key)).find(t=>t.id===newLinked)||{}).subject || newSubject) : newSubject;
-        s.duration = newDuration;
-        s.note = newNote || null;
-        updateLinkedTaskProgress(key, s.linkedTaskId);
-      }
+      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
       await flushStateNow();
       renderSessions();
       renderGoalCard();
@@ -3858,45 +3526,257 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   async function renderTaskList(){
-    const el=document.getElementById('taskList'); const dateKey=fmtDate(selectedDate);
-    const data=activeData();
-    const blocks=blocksForDateIn(data,selectedDate);
-    let html=`<h3 class="section-title">${isViewingSelf()?'My tasks':escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name||'User')+'’s tasks'}</h3>`;
-    if(!blocks.length){ html+=`<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${isViewingSelf()?'tap + to add a task for this day':''}</div>`; el.innerHTML=html; return; }
-    html+=blocks.map(b=>{
-      const compKey=dateKey+'|'+b.id, status=(data.completion||{})[compKey];
-      const prog=linkedTaskProgress(data,dateKey,b);
-      const hasLinked=(data.sessions||{})[dateKey]?.some(s=>s.linkedTaskId===b.id);
-      const pct = status==='done' ? 100 : prog.pct;
-      const progressLabel = hasLinked ? `${prog.pct}%` : (status==='done' ? '100%' : '');
-      const progressVisual = `<div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>`;
-      return `<div class="task-card progress-row ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="--progress:${pct}%;"><div class="time">${timeColHtml(b.start,b.duration||30)}</div>${progressVisual}<div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,data))}<span class="progress-label">${progressLabel}</span></div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,data)}"></span>${escapeHtml(subjectNameIn(b.subject,data))} · ${b.duration||30} min${hasLinked?' · '+prog.logged+' min logged':''}</div>${b.linkedGoalId?`<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,data))}</div>`:''}</div>${isViewingSelf()?`<button class="task-actions" data-id="${b.id}" data-source="${b.source}" title="Edit, comment or delete">⋯</button>`:`<button class="cmt-btn" data-cid="${commentsIdFor(b.id,viewingId||me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>`}</div>`;
-    }).join('');
-    el.innerHTML=html;
-    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{state.completion[c.dataset.key]=nextStatus(state.completion[c.dataset.key]);saveState();renderTaskList();renderWeeklyGoalsList();}));
-    if(isViewingSelf()) el.querySelectorAll('.task-actions').forEach(btn=>btn.addEventListener('click',()=>openTaskActions(btn.dataset.id,btn.dataset.source)));
+    const el = document.getElementById('taskList');
+    const dateKey = fmtDate(selectedDate);
+    let html = '';
+
+    if(isViewingSelf()){
+      const myBlocks = blocksForDateIn(state, selectedDate);
+      const sharedTasks = await loadSharedTasks(dateKey);
+
+      html += `<h3 class="section-title">My tasks</h3>`;
+      if(myBlocks.length===0 && sharedTasks.length===0){
+        html += `<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>tap + to add a task for this day</div>`;
+      } else if(myBlocks.length===0){
+        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">no tasks of your own yet — tap +</div>`;
+      } else {
+        const isToday = dateKey === fmtDate(new Date());
+        html += myBlocks.map(b=>{
+          const compKey = dateKey+'|'+b.id;
+          let status = state.completion[compKey]; // undefined | 'done' | 'missed'
+          let checkInner = status==='done'?'✓':(status==='missed'?'✕':'');
+          let checkExtraClass = '';
+          if(isToday){
+            const linkedMin = (state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
+            if(linkedMin > 0 && status!=='missed'){
+              const pct = Math.min(100, Math.round((linkedMin/(b.duration||30))*100));
+              if(pct >= 100 && status!=='done'){
+                status = 'done';
+                state.completion[compKey] = 'done';
+                saveState();
+                checkInner = '✓';
+              } else if(pct < 100){
+                checkExtraClass = 'has-donut';
+                const r = 10, c = 2*Math.PI*r;
+                checkInner = `<svg viewBox="0 0 26 26" width="24" height="24"><circle cx="13" cy="13" r="${r}" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3"/><circle cx="13" cy="13" r="${r}" fill="none" stroke="${subjectColorIn(b.subject,state)}" stroke-width="3" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct/100)}" transform="rotate(-90 13 13)"/></svg><span class="check-pct">${pct}%</span>`;
+              }
+            }
+          }
+          return `
+            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+              <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
+              <div class="check ${status||''} ${checkExtraClass}" data-key="${compKey}">${checkInner}</div>
+              <div class="body">
+                <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
+                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+                ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
+              </div>
+              <div class="task-menu-wrap">
+                <button type="button" class="task-menu-btn" data-menu-id="${b.id}">⋮</button>
+                <div class="task-menu" data-menu-for="${b.id}">
+                  <button type="button" class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬 Comment</button>
+                  <button type="button" class="task-edit" data-id="${b.id}" data-source="${b.source}">✏️ Edit</button>
+                  <button type="button" class="task-del" data-id="${b.id}" data-source="${b.source}">🗑 Delete</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      if(sharedTasks.length){
+        html += `<h3 class="section-title">Doing together</h3>`;
+        html += sharedTasks.map(t=>{
+          const people = [me, ...usersList.filter(u=>u.id!==me.id)];
+          const rowHtml = people.map(p=>{
+            const st = (t.completions||{})[p.id];
+            const mine = p.id===me.id;
+            return `<div class="who-chip ${st||''} ${mine?'mine':''}" data-shared-task="${mine? t.id : ''}" title="${p.name}">
+              <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
+              <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
+            </div>`;
+          }).join('');
+          return `
+            <div class="task-card shared">
+              <div class="time">${timeColHtml(t.start, t.duration||30)}</div>
+              <div class="body">
+                <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
+                <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
+                <div class="who-row">${rowHtml}</div>
+              </div>
+              <div class="task-menu-wrap">
+                <button type="button" class="task-menu-btn" data-menu-id="shr_${t.id}">⋮</button>
+                <div class="task-menu" data-menu-for="shr_${t.id}">
+                  <button type="button" class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬 Comment</button>
+                  ${t.createdBy===me.id ? `<button type="button" class="task-del" data-shared-del="${t.id}">🗑 Delete</button>` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    } else {
+      const friend = usersList.find(u=>u.id===viewingId);
+      const friendName = friend ? friend.name : 'Their';
+      html += `<h3 class="section-title">${escapeHtml(friendName)}'s tasks</h3>`;
+      if(isScheduleHiddenFor(viewingId)){
+        html += `<div class="empty" style="padding:26px 0;"><div class="big">🙈 Private</div>${escapeHtml(friendName)} has chosen to keep their schedule private.</div>`;
+      } else {
+        await fetchFriendBoard(viewingId);
+        const fb = friendCache[viewingId] || {};
+        const fBlocks = blocksForDateIn(fb, selectedDate);
+        if(fBlocks.length===0){
+          html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
+        } else {
+          html += fBlocks.map(b=>{
+            const compKey = dateKey+'|'+b.id;
+            const status = (fb.completion||{})[compKey];
+            return `
+              <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+                <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
+                <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+                <div class="body">
+                  <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
+                  <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${subjectNameIn(b.subject, fb)} · ${b.duration||30} min</div>
+                </div>
+                <button type="button" class="cmt-btn" data-cid="${commentsIdFor(b.id, viewingId)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,fb))}" style="background:none; border:none; font-size:15px; cursor:pointer;">💬</button>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    el.innerHTML = html;
+
+    // ---- combined ⋮ menu: open/close ----
+    el.querySelectorAll('.task-menu-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const menu = el.querySelector(`.task-menu[data-menu-for="${btn.dataset.menuId}"]`);
+        const isOpen = menu.classList.contains('open');
+        el.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+        if(!isOpen) menu.classList.add('open');
+      });
+    });
+    if(!el.dataset.menuCloseWired){
+      el.dataset.menuCloseWired = '1';
+      document.addEventListener('click', ()=>{
+        el.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+      });
+    }
+
+    // ---- handlers: my own tasks ----
+    el.querySelectorAll('.check').forEach(c=>{
+      if(c.style.pointerEvents==='none') return;
+      c.addEventListener('click', ()=>{
+        const k = c.dataset.key;
+        state.completion[k] = nextStatus(state.completion[k]);
+        saveState();
+        renderTaskList();
+        renderWeeklyGoalsList();
+      });
+    });
+    el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id, source = btn.dataset.source;
+        const dateKeyNow = fmtDate(selectedDate);
+        const block = source==='template'
+          ? state.weeklyTemplate.find(b=>b.id===id)
+          : (state.dailyExtra[dateKeyNow]||[]).find(b=>b.id===id);
+        if(block) openAddModal(source==='template' ? 'template' : 'extra', block);
+      });
+    });
+    el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id, source = btn.dataset.source;
+        if(source==='template'){
+          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
+        } else {
+          const key = fmtDate(selectedDate);
+          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
+        }
+        saveState();
+        renderTaskList();
+        renderWeeklyGoalsList();
+      });
+    });
+
+    // ---- handlers: shared "together" task — tick your own status ----
+    el.querySelectorAll('.who-chip[data-shared-task]').forEach(chip=>{
+      const taskId = chip.dataset.sharedTask;
+      if(!taskId) return; // not your own avatar — read only
+      chip.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        const t = list.find(x=>x.id===taskId);
+        if(!t) return;
+        t.completions = t.completions || {};
+        t.completions[me.id] = nextStatus(t.completions[me.id]);
+        await saveSharedTasks(dateKey, list);
+        renderTaskList();
+      });
+    });
+    el.querySelectorAll('.task-del[data-shared-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        await saveSharedTasks(dateKey, list.filter(x=>x.id!==btn.dataset.sharedDel));
+        renderTaskList();
+      });
+    });
+
     attachCommentButtons(el);
-  }
-  function openTaskActions(id,source){
-    const dateKey=fmtDate(selectedDate); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===id); if(!block)return;
-    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal" style="text-align:center"><button class="close-x">×</button><h3>${escapeHtml(block.label||subjectNameIn(block.subject,state))}</h3><button class="btn btn-ghost" id="ta-edit" style="width:100%;margin-bottom:8px">✏️ Edit</button><button class="btn btn-ghost" id="ta-comment" style="width:100%;margin-bottom:8px">💬 Comment</button><button class="btn btn-ghost" id="ta-delete" style="width:100%;color:var(--c1)">Delete</button></div>`;
-    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#ta-edit').addEventListener('click',()=>{close();openAddModal(source==='template'?'template':'extra',block);});
-    backdrop.querySelector('#ta-comment').addEventListener('click',()=>{close();openCommentsModal(commentsIdFor(block.id,me.id),block.label||subjectNameIn(block.subject,state));});
-    backdrop.querySelector('#ta-delete').addEventListener('click',()=>{if(source==='template')state.weeklyTemplate=state.weeklyTemplate.filter(x=>x.id!==id);else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(x=>x.id!==id);saveState();close();renderTaskList();renderWeeklyGoalsList();});
+    // mirror the unread-comment dot onto the visible ⋮ trigger (comment button lives inside the collapsed menu)
+    el.querySelectorAll('.task-menu .cmt-btn[data-cid]').forEach(btn=>{
+      loadComments(btn.dataset.cid).then(items=>{
+        if(!items.length) return;
+        const lastRead = myReads[btn.dataset.cid] || 0;
+        const unread = items.some(c => c.ts > lastRead && c.by !== me.id);
+        if(unread){
+          const trigger = btn.closest('.task-menu-wrap')?.querySelector('.task-menu-btn');
+          if(trigger) trigger.classList.add('has-unread');
+        }
+      }).catch(()=>{});
+    });
   }
 
   // ---------- WEEK SCREEN ----------
   let weekOffset = 0;
   function startOfWeek(date, offsetWeeks){
+    const startDay = (state.weekStartDay!==undefined && state.weekStartDay!==null) ? state.weekStartDay : 0;
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    const start = getWeekStartDay();
-    const diff = (d.getDay() - start + 7) % 7;
+    const diff = (d.getDay() - startDay + 7) % 7;
     d.setDate(d.getDate() - diff + offsetWeeks*7);
     return d;
   }
+  function openWeekStartDayPicker(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const current = (state.weekStartDay!==undefined && state.weekStartDay!==null) ? state.weekStartDay : 0;
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Week starts on</h3>
+        <div class="day-toggle-row" id="wsd-days">
+          ${DAY_NAMES.map((n,i)=>`<div class="day-toggle ${i===current?'sel':''}" data-day="${i}">${n}</div>`).join('')}
+        </div>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin-top:10px;">This changes which day every week/goal view starts and ends on, for everyone in your groups.</div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelectorAll('#wsd-days .day-toggle').forEach(d=>{
+      d.addEventListener('click', ()=>{
+        state.weekStartDay = parseInt(d.dataset.day, 10);
+        saveState();
+        renderWeeklyGoalsList();
+        close();
+      });
+    });
+  }
+  document.getElementById('weekStartDayBtn').addEventListener('click', openWeekStartDayPicker);
 
   // ---------- weekly goal progress ----------
   function linkedDoneItemsForGoal(data, goalId, weekStart){
@@ -3969,12 +3849,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const labelEl = document.getElementById('weekNavLabel');
-    if(labelEl){
-      labelEl.textContent = weekOffset===0 ? 'This week' : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
-      const sr=document.getElementById('weekStartRange'), er=document.getElementById('weekEndRange');
-      if(sr) sr.textContent=`${DAY_NAMES[weekStart.getDay()]} · ${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}`;
-      if(er) er.textContent=`${DAY_NAMES[weekEnd.getDay()]} · ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
-    }
+    if(labelEl) labelEl.textContent = weekOffset===0 ? 'This week' : (weekOffset<0 ? 'Past week' : 'Upcoming week');
+    const startEl = document.getElementById('weekNavStart');
+    const endEl = document.getElementById('weekNavEnd');
+    if(startEl) startEl.textContent = `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}`;
+    if(endEl) endEl.textContent = `${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
 
 
     const wk = weekStartKey(weekStart);
@@ -4120,11 +3999,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
     });
   }
-  document.getElementById('weekStartPen').addEventListener('click',()=>{
-    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div class="field-row"><label>Choose the first day of your week</label><select id="week-start-select">${DAY_NAMES.map((n,i)=>`<option value="${i}" ${getWeekStartDay()===i?'selected':''}>${n}</option>`).join('')}</select></div><div class="modal-actions"><button class="btn btn-ghost" id="ws-cancel">Cancel</button><button class="btn btn-primary" id="ws-save">Save</button></div></div>`;
-    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.querySelector('#ws-cancel').addEventListener('click',close);backdrop.querySelector('#ws-save').addEventListener('click',()=>{const nextStart=Number(backdrop.querySelector('#week-start-select').value); const oldStart=getWeekStartDay(); migrateWeekStartSetting(oldStart,nextStart); state.weekStartDay=nextStart; saveState();weekOffset=0;openGoalCardId=null;renderWeeklyGoalsList();close();});
-  });
   document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
   document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
 
@@ -4387,6 +4261,28 @@ window.storage = storage; // keep the rest of the app's code unchanged
     };
   }
   // duration stepper (+/- 30 min steps): returns {getValue(): number}
+  // scrollable Hour:Minute wheel (for custom focus-timer length): returns {getValue(): total minutes}
+  function createHourMinWheel(container, initialTotalMin){
+    container.innerHTML = `
+      <div class="wheel-picker">
+        <div class="wheel-col" id="${container.id}-h"></div>
+        <div class="wheel-col" id="${container.id}-m"></div>
+        <div class="wheel-highlight"></div>
+      </div>
+      <div class="wheel-label" style="display:flex; gap:2px;"><span style="flex:1;">Hours</span><span style="flex:1;">Min</span></div>
+    `;
+    const total = Math.max(5, initialTotalMin || 60);
+    let ih = Math.floor(total/60);
+    let im = Math.round((total%60)/5)*5;
+    if(im===60){ im=0; ih++; }
+    ih = Math.min(ih, 6);
+    const hours = Array.from({length:7}, (_,i)=>i); // 0-6 hours
+    const mins = Array.from({length:12}, (_,i)=> pad(i*5));
+    let hourVal = ih, minVal = im;
+    buildWheelColumn(container.querySelector(`#${container.id}-h`), hours, hours.indexOf(hourVal), (v)=>{ hourVal=v; });
+    buildWheelColumn(container.querySelector(`#${container.id}-m`), mins, Math.round(minVal/5), (v)=>{ minVal=parseInt(v,10); });
+    return { getValue(){ return Math.max(5, hourVal*60 + minVal); } };
+  }
   function createDurationStepper(container, initialMin){
     let durVal = Math.max(30, Math.round((initialMin||30)/30)*30);
     container.innerHTML = `
@@ -4568,7 +4464,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
             await saveSharedTasks(dateKey, list);
           }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`, null, 'taskComment');
+          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
         } else {
           selectedDays.forEach(day=>{
             state.weeklyTemplate.push({
@@ -4577,7 +4473,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
           });
           saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`, null, 'taskComment');
+          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
         }
       } else if(together){
         const dateKey = fmtDate(selectedDate);
@@ -4588,7 +4484,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           completions: {}
         });
         await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`, null, 'taskComment');
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
@@ -4598,7 +4494,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           linkedGoalId: linkGoalId
         });
         saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`, null, 'taskComment');
+        notifyOthers(`${me.name} added a task: ${taskName}`);
       }
       render();
       close();
@@ -4608,8 +4504,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // ---------- master render ----------
   function render(){
     renderPeopleRow(); renderSnapRow();
-    // Group selector remains Live-only; never inject a group control into NOW/TODAY/WEEK.
-    renderLiveGroupPanel();
 
     const banner = document.getElementById('viewingBanner');
     if(currentScreen==='week' && !isViewingSelf()){
@@ -4628,7 +4522,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     updateFriendTimerCard();
     renderGoalCard();
 
-    renderTimerTaskLink();
+    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
     renderSessions();
     renderDayScroller();
     renderTaskList();
