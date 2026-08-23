@@ -120,6 +120,14 @@
     overflow:hidden; white-space:nowrap;
   }
   .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
+  .mode-switch.mode-collapsed{ display:none; }
+  .timer-options-row{ display:flex; align-items:center; gap:8px; margin:-4px 0 10px; min-width:0; }
+  .timer-options-row .timer-link-row{ flex:1; min-width:0; margin:0; }
+  .timer-options-row .dur-chip-row{ flex:1.8; min-width:0; }
+  .timer-options-row .dur-chip{ min-width:0; padding:7px 4px; }
+  .timer-options-row .dur-chip .dur-min{ font-size:11px; }
+  .timer-options-row .dur-chip .dur-tag{ display:none; }
+  .timer-options-row.mode-collapsed{ display:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
   .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
@@ -290,7 +298,9 @@
     background:var(--card); border:1px solid var(--card-line); border-radius:14px;
     padding:14px; margin-bottom:10px;
   }
-  .task-card.done{ opacity:0.45; }
+  .task-card.done{ opacity:0.55; }
+  .task-card.progress-row{ position:relative; overflow:hidden; background:linear-gradient(90deg, rgba(var(--accent-rgb),0.20) 0%, rgba(var(--accent-rgb),0.20) var(--progress,0%), var(--card) var(--progress,0%), var(--card) 100%); transition:background .35s ease; }
+  .task-card.progress-row .progress-label{ font-family:'JetBrains Mono'; font-size:10px; color:var(--chalk-faint); margin-left:6px; }
   .task-card .time{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); min-width:60px; padding-top:2px; line-height:1.6; }
   .task-card .time .end{ opacity:0.65; }
   .task-card .time .arrow{ opacity:0.4; }
@@ -983,29 +993,23 @@
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
       <div id="timerControlsWrap">
-        <div class="mode-switch">
+        <div class="mode-switch" id="timerModeSwitch">
           <button id="modeStopwatch" class="active">Stopwatch</button>
           <button id="modeCountdown">Focus Timer</button>
         </div>
 
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="timerSubject"></select>
-        </div>
-        <div class="timer-link-row">
-          <button type="button" class="timer-link-btn" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
-          <div class="timer-link-label" id="timerTaskLinkLabel">No daily task linked (optional)</div>
-        </div>
-
-        <div class="field-row" id="countdownLenRow" style="display:none;">
-          <label>Focus length</label>
-          <div class="dur-chip-row" id="countdownLenChips">
+        <div class="timer-options-row" id="timerOptionsRow">
+          <div class="timer-link-row">
+            <button type="button" class="timer-link-btn" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
+            <div class="timer-link-label" id="timerTaskLinkLabel">No daily task linked (optional)</div>
+          </div>
+          <div class="dur-chip-row" id="countdownLenChips" style="display:none;">
             <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag">Focus</span></div>
             <div class="dur-chip sel" data-min="60"><span class="dur-min">1 hour</span><span class="dur-tag">Focus</span></div>
             <div class="dur-chip" data-custom="1"><span class="dur-min">Custom</span><span class="dur-tag">hour : minute</span></div>
           </div>
-          <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
         </div>
+        <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
 
         <div class="timer-ring-wrap">
           <div class="ring-outer" id="ringOuter" style="display:none;">
@@ -2567,7 +2571,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
-    document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
+    const chips=document.getElementById('countdownLenChips');
+    if(chips) chips.style.display = mode==='countdown' && !timerRunning && elapsedMs===0 ? 'flex' : 'none';
     if(mode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
@@ -2578,10 +2583,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // full Reset/Stop, both options stay visible so you can freely switch your mind.
   function updateRunningDeclutter(){
     const committed = timerRunning || elapsedMs > 0;
-    const countdownRow = document.getElementById('countdownLenRow');
-    if(countdownRow) countdownRow.style.display = (timerMode==='countdown' && !timerRunning && elapsedMs===0) ? 'block' : 'none';
-    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
-    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
+    const modeSwitch=document.getElementById('timerModeSwitch');
+    const optionsRow=document.getElementById('timerOptionsRow');
+    const chips=document.getElementById('countdownLenChips');
+    if(modeSwitch) modeSwitch.classList.toggle('mode-collapsed', committed);
+    if(optionsRow) optionsRow.classList.toggle('mode-collapsed', committed);
+    if(chips) chips.style.display = (!committed && timerMode==='countdown') ? 'flex' : 'none';
+    if(!committed && timerMode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
     if(timerRunning) return; applyModeUI('stopwatch'); elapsedMs=0; renderTimerDigits();
@@ -2605,7 +2613,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       renderTimerDigits();
     });
   });
-  document.getElementById('timerSubject').addEventListener('change', renderRing);
   document.getElementById('timerTaskPin').addEventListener('click', openTimerTaskPicker);
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
   document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
@@ -2627,6 +2634,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const task=(blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId));
     el.textContent=task ? `Linked: ${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min` : 'No daily task linked (optional)';
     btn.classList.toggle('linked',!!task);
+    if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
+      countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
+      customFocusMin=Math.max(1,Number(task.duration||30));
+      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+      document.getElementById('customFocusWheel').style.display='none';
+      renderTimerDigits();
+    }
   }
   function openTimerTaskPicker(){
     if(!isViewingSelf()) return;
@@ -2638,7 +2652,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
     function close(){backdrop.remove();}
     backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
     backdrop.querySelector('#timer-task-skip').addEventListener('click',()=>{linkedTaskId=null;renderTimerTaskLink();close();});
-    wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{linkedTaskId=b.dataset.id;renderTimerTaskLink();close();}));
+    wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{
+      linkedTaskId=b.dataset.id;
+      const task=tasks.find(t=>t.id===linkedTaskId);
+      if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
+        countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
+        customFocusMin=Math.max(1,Number(task.duration||30));
+        document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+        document.getElementById('customFocusWheel').style.display='none';
+      }
+      renderTimerTaskLink(); close();
+    }));
   }
 
   const RING_R = 100;
@@ -2685,8 +2709,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const ring = document.getElementById('ringProgress');
     ring.style.strokeDashoffset = RING_C * (1 - fraction);
     if(me){
-      const subjectId = document.getElementById('timerSubject').value;
-      ring.style.stroke = subjectColorIn(subjectId, state);
+      const task=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
+      ring.style.stroke = task ? subjectColorIn(task.subject,state) : 'var(--accent)';
     }
     document.getElementById('ringOuter').classList.toggle('running', timerRunning);
   }
@@ -2745,10 +2769,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
-      const subjectId = document.getElementById('timerSubject').value;
+      const linkedTask=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
+      const subjectId = linkedTask ? linkedTask.subject : '';
       setLiveStatus({
-        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
-        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+        studying:true, subject:subjectId, subjectName: subjectId ? subjectNameIn(subjectId, state) : '',
+        linkedTaskId: linkedTaskId || null, mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
       startSnapshotScheduler();
       updateFocusToggleVisibility();
@@ -2907,7 +2932,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const startedAtMs = sessionStartClock || (Date.now() - elapsedMs);
     const key = fmtDate(new Date(startedAtMs));
     if(!state.sessions[key]) state.sessions[key] = [];
-    const subjectId = document.getElementById('timerSubject').value;
+    const linkedTask=linkedTaskId ? blocksForDateIn(state,parseDateKey(key)).find(b=>b.id===linkedTaskId) : null;
+    const subjectId = linkedTask ? linkedTask.subject : '';
     const durationMin = Math.round(elapsedMs/60000 * 10)/10;
     const endedAt = Date.now();
     let justLoggedSession = null;
@@ -2919,6 +2945,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         duration: durationMin,
         mode: timerMode,
         completed: completed,
+        linkedTaskId: linkedTaskId || null,
         startedAt: startedAtMs,
         endedAt: endedAt
       };
@@ -3232,7 +3259,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
         lastTick = Date.now();
         clearInterval(tickHandle);
         tickHandle = setInterval(tick, 250);
-        if(st.subject) document.getElementById('timerSubject').value = st.subject;
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
         renderTimerDigits();
@@ -3455,9 +3481,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!blocks.length){ html+=`<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${isViewingSelf()?'tap + to add a task for this day':''}</div>`; el.innerHTML=html; return; }
     html+=blocks.map(b=>{
       const compKey=dateKey+'|'+b.id, status=(data.completion||{})[compKey];
-      const prog=linkedTaskProgress(data,dateKey,b); const hasLinked=(data.sessions||{})[dateKey]?.some(s=>s.linkedTaskId===b.id);
-      const progressVisual=hasLinked ? `<div class="task-progress-donut"><svg viewBox="0 0 50 50"><circle class="track" cx="25" cy="25" r="20"></circle><circle class="fill" cx="25" cy="25" r="20" stroke-dasharray="125.66" stroke-dashoffset="${125.66*(1-prog.pct/100)}"></circle></svg><div class="pct">${prog.pct}%</div></div>` : `<div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>`;
-      return `<div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}"><div class="time">${timeColHtml(b.start,b.duration||30)}</div>${progressVisual}<div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,data))}</div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,data)}"></span>${escapeHtml(subjectNameIn(b.subject,data))} · ${b.duration||30} min${hasLinked?' · '+prog.logged+' min logged':''}</div>${b.linkedGoalId?`<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,data))}</div>`:''}</div>${isViewingSelf()?`<button class="task-actions" data-id="${b.id}" data-source="${b.source}" title="Edit, comment or delete">⋯</button>`:`<button class="cmt-btn" data-cid="${commentsIdFor(b.id,viewingId||me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>`}</div>`;
+      const prog=linkedTaskProgress(data,dateKey,b);
+      const hasLinked=(data.sessions||{})[dateKey]?.some(s=>s.linkedTaskId===b.id);
+      const pct = status==='done' ? 100 : prog.pct;
+      const progressLabel = hasLinked ? `${prog.pct}%` : (status==='done' ? '100%' : '');
+      const progressVisual = `<div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>`;
+      return `<div class="task-card progress-row ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="--progress:${pct}%;"><div class="time">${timeColHtml(b.start,b.duration||30)}</div>${progressVisual}<div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,data))}<span class="progress-label">${progressLabel}</span></div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,data)}"></span>${escapeHtml(subjectNameIn(b.subject,data))} · ${b.duration||30} min${hasLinked?' · '+prog.logged+' min logged':''}</div>${b.linkedGoalId?`<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,data))}</div>`:''}</div>${isViewingSelf()?`<button class="task-actions" data-id="${b.id}" data-source="${b.source}" title="Edit, comment or delete">⋯</button>`:`<button class="cmt-btn" data-cid="${commentsIdFor(b.id,viewingId||me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>`}</div>`;
     }).join('');
     el.innerHTML=html;
     el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{state.completion[c.dataset.key]=nextStatus(state.completion[c.dataset.key]);saveState();renderTaskList();renderWeeklyGoalsList();}));
@@ -4213,7 +4242,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     updateFriendTimerCard();
     renderGoalCard();
 
-    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
     renderTimerTaskLink();
     renderSessions();
     renderDayScroller();
