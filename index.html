@@ -1553,6 +1553,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
+    await loadNotificationSettings();
     await loadMyGroupIds();
     await subscribeActiveGroup();
     await loadMyReads();
@@ -1564,6 +1565,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     subscribeSelfNudges();
     subscribeOwnBoard();
     renderSnapRow();
+    scheduleLocalTaskAlerts();
     setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
     refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
@@ -1595,6 +1597,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
+    const notifDefs = [
+      ['timerEnd','Timer ending','Alert when a focus timer finishes'],
+      ['taskApproaching','Task approaching','5-minute reminder before a scheduled task'],
+      ['studyStart','Someone starts studying','Alert when someone in your active group starts studying'],
+      ['taskComment','Tasks & comments','Alert when someone adds a task or comment'],
+      ['groupChanges','Group changes','Alert when someone joins or leaves your group']
+    ];
+    const notifBox=backdrop.querySelector('#acct-notif-settings');
+    notifBox.innerHTML=notifDefs.map(([key,label,desc])=>`<div class="field-row" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;"><div style="min-width:0;"><div style="font-size:12px;color:var(--chalk);">${label}</div><div style="font-size:10px;color:var(--chalk-faint);">${desc}</div></div><label class="switch"><input type="checkbox" data-notif-key="${key}" ${notificationSettings[key]?'checked':''}><span class="switch-slider"></span></label></div>`).join('');
+    const pushBtn=backdrop.querySelector('#acct-enable-push');
+    pushBtn.addEventListener('click', async()=>{
+      const r=await enablePushNotifications();
+      pushBtn.textContent = r.ok ? '✅ System notifications enabled' : (r.reason==='denied' ? '⚠️ Permission blocked in browser settings' : `🔔 Enable / repair system notifications${r.detail?' — '+r.detail:''}`);
+    });
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('#ql-cancel').addEventListener('click', close);
     backdrop.querySelector('#ql-join').addEventListener('click', async ()=>{
@@ -1792,6 +1808,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="number" id="acct-goal-weekly" value="${(state.goals&&state.goals.weeklyMin)? (state.goals.weeklyMin/60) : 0}" min="0" step="0.5">
         </div>
         <div class="section-divider"></div>
+        <h4 class="modal-subhead">Notifications & reminders</h4>
+        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 10px;">Choose which alerts you receive. Browser/system push also requires Notifications permission.</div>
+        <div id="acct-notif-settings"></div>
+        <button class="btn btn-ghost" id="acct-enable-push" style="width:100%; margin:8px 0 10px;">🔔 Enable / repair system notifications</button>
+        <div class="section-divider"></div>
         <h4 class="modal-subhead">Camera & Snapshots</h4>
         <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
           <label style="margin:0;">Share live snapshots while studying</label>
@@ -1883,6 +1904,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       state.goals = { dailyMin, weeklyMin };
       await flushStateNow();
 
+      const nextNotifSettings = Object.assign({}, notificationSettings);
+      backdrop.querySelectorAll('[data-notif-key]').forEach(inp=> nextNotifSettings[inp.dataset.notifKey] = inp.checked);
+      await saveNotificationSettings(nextNotifSettings);
+
       const wasEnabled = snapSettings.enabled;
       snapSettings.enabled = backdrop.querySelector('#acct-snap-enabled').checked;
       snapSettings.facing = pickedFacing;
@@ -1908,32 +1933,131 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- notifications ----------
   const NOTIF_LIMIT = 60;
+  const DEFAULT_NOTIFICATION_SETTINGS = {
+    timerEnd: true,
+    taskApproaching: true,
+    studyStart: true,
+    taskComment: true,
+    groupChanges: true
+  };
+  let notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS);
+  let notificationSettingsLoaded = false;
+  async function loadNotificationSettings(){
+    if(!me) return notificationSettings;
+    try{
+      const snap = await getDoc(doc(db,'notificationSettings',me.id));
+      notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, snap.exists()?snap.data():{});
+    }catch(e){
+      notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS);
+    }
+    notificationSettingsLoaded = true;
+    return notificationSettings;
+  }
+  async function saveNotificationSettings(next){
+    notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, next||{});
+    if(me){
+      try{ await setDoc(doc(db,'notificationSettings',me.id), notificationSettings, {merge:true}); }catch(e){ console.warn('notification settings save failed',e); }
+    }
+  }
+  function notificationCategoryEnabled(category){
+    if(category==='timerEnd') return notificationSettings.timerEnd;
+    if(category==='taskApproaching') return notificationSettings.taskApproaching;
+    if(category==='studyStart') return notificationSettings.studyStart;
+    if(category==='taskComment') return notificationSettings.taskComment;
+    if(category==='groupChanges') return notificationSettings.groupChanges;
+    return true;
+  }
+  async function showLocalSystemNotification(title, body, category){
+    if(!notificationCategoryEnabled(category)) return;
+    try{
+      if(!('Notification' in window) || Notification.permission!=='granted') return;
+      if(swRegistration){
+        await swRegistration.showNotification(title, {body, icon:'./icons/icon-192.png', badge:'./icons/icon-192.png', data:{url:'./index.html'}, vibrate:[100,50,100]});
+      } else {
+        new Notification(title, {body});
+      }
+    }catch(e){ console.warn('local notification failed',e); }
+  }
+  function scheduleLocalTaskAlerts(){
+    if(window.__taskAlertHandle) clearInterval(window.__taskAlertHandle);
+    const check=()=>{
+      if(!me || !notificationSettings.taskApproaching) return;
+      const now=Date.now();
+      const dateKey=fmtDate(new Date());
+      const tasks=blocksForDateIn(state,new Date());
+      tasks.forEach(t=>{
+        if(!t.start) return;
+        const parts=String(t.start).split(':').map(Number);
+        if(parts.length<2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return;
+        const due=new Date(); due.setHours(parts[0],parts[1],0,0);
+        const diff=due.getTime()-now;
+        if(diff>=4*60*1000 && diff<=6*60*1000){
+          const key='sb-task-alert:'+dateKey+':'+t.id;
+          if(localStorage.getItem(key)) return;
+          localStorage.setItem(key,'1');
+          const label=t.label||subjectNameIn(t.subject,state);
+          pushNotification(me.id, `Task starting in 5 minutes: ${label}`, 'taskApproaching');
+          showLocalSystemNotification('Study Board', `Task starting in 5 minutes: ${label}`, 'taskApproaching');
+        }
+      });
+    };
+    check();
+    window.__taskAlertHandle=setInterval(check,30000);
+  }
+  function armLocalTimerEndAlert(){
+    if(window.__timerAlertHandle) clearTimeout(window.__timerAlertHandle);
+    if(!notificationSettings.timerEnd || timerMode!=='countdown' || !timerRunning) return;
+    const remaining=Math.max(0, countdownTotalMs-elapsedMs);
+    if(remaining<=0) return;
+    window.__timerAlertHandle=setTimeout(()=>{
+      if(!timerRunning || timerMode!=='countdown') return;
+      pushNotification(me.id, 'Focus timer finished 🎉', 'timerEnd');
+      showLocalSystemNotification('Focus timer finished', 'Your focus timer is complete.', 'timerEnd');
+    }, remaining+250);
+  }
+  function clearLocalTimerEndAlert(){ if(window.__timerAlertHandle){ clearTimeout(window.__timerAlertHandle); window.__timerAlertHandle=null; } }
+  async function writeTimerSchedule(active){
+    if(!me) return;
+    try{
+      await setDoc(doc(db,'timerSchedules',me.id), {
+        active:!!active,
+        endsAt: active && timerMode==='countdown' ? Date.now()+Math.max(0,countdownTotalMs-elapsedMs) : null,
+        title: linkedTaskId ? ((blocksForDateIn(state,new Date()).find(t=>t.id===linkedTaskId)||{}).label || 'Focus timer') : 'Focus timer',
+        updatedAt:Date.now()
+      }, {merge:true});
+    }catch(e){ console.warn('timer schedule write failed',e); }
+  }
   async function loadNotifications(uid){
     try{
       const snap = await getDoc(doc(db, 'notifications', uid));
       return snap.exists() ? (snap.data().items || []) : [];
     }catch(e){ return []; }
   }
-  async function pushNotification(uid, text){
+  async function pushNotification(uid, text, category='taskComment', meta={}){
     if(!uid) return;
     try{
+      const now=Date.now();
       const items = await loadNotifications(uid);
-      items.push({ text, ts: Date.now(), read:false });
+      items.push({ text, ts: now, read:false, category, ...meta });
       while(items.length > NOTIF_LIMIT) items.shift();
       await setDoc(doc(db, 'notifications', uid), { items });
+      const eventId = `${now}_${Math.random().toString(36).slice(2,8)}`;
+      await setDoc(doc(db,'notificationEvents',uid,'events',eventId), {
+        text, category, createdAt: now, url:'./index.html', ...meta
+      });
     }catch(e){ console.error('notify failed', e); }
   }
-  async function notifyOthers(text, excludeId){
+  async function notifyOthers(text, excludeId, category='taskComment'){
     const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
-    for(const u of targets){ await pushNotification(u.id, text); }
+    for(const u of targets){ await pushNotification(u.id, text, category); }
   }
   async function notifyForComment(cid, title, text){
     const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
     if(cid.startsWith('p_')){
       const ownerId = cid.split('_')[1];
-      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`, 'taskComment');
     } else if(cid.startsWith('s_')){
-      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`, null, 'taskComment');
     }
   }
   async function refreshBellBadge(){
@@ -2474,10 +2598,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
-    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`, 'groupChanges'); }
     return g;
   }
   async function leaveGroup(groupId){
+    try{
+      const snap = await getDoc(doc(db,'groups',groupId));
+      const g = snap.exists() ? snap.data() : null;
+      if(g){ for(const uid of Object.keys(g.members||{})){ if(uid!==me.id) await pushNotification(uid, `${me.name} left "${g.name}"`, 'groupChanges'); } }
+    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
     myGroupIds = myGroupIds.filter(id=>id!==groupId);
     const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
@@ -2485,6 +2614,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setActiveGroup(nextActive);
   }
   async function removeMemberFromGroup(groupId, uid){
+    try{
+      const snap=await getDoc(doc(db,'groups',groupId));
+      const g=snap.exists()?snap.data():null;
+      if(g){ const p=profileFor(uid); for(const memberId of Object.keys(g.members||{})){ if(memberId!==uid) await pushNotification(memberId, `${p.name} left "${g.name}"`, 'groupChanges'); } }
+    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [uid]: deleteField() } }, { merge:true }); }catch(e){}
   }
   async function extendGroupDeadline(groupId, newDeadlineMs){
@@ -2975,10 +3109,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const flagKey = 'sb-notified-first-session-'+todayKey;
     if(localStorage.getItem(flagKey)) return;
     localStorage.setItem(flagKey, '1');
-    notifyOthers(`${me.name} started studying today 📚`);
+    notifyOthers(`${me.name} started studying today 📚`, null, 'studyStart');
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
+      const isFreshSessionStart = !sessionStartClock;
       timerRunning = true;
       lastTick = Date.now();
       if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
@@ -2997,7 +3132,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('timerModeSwitch').classList.add('mode-collapsed');
       updateFocusToggleVisibility();
       updateRunningDeclutter();
+      if(isFreshSessionStart) notifyOthers(`${me.name} started studying 📚`, null, 'studyStart');
       notifyFirstSessionOfDayIfNeeded();
+      writeTimerSchedule(true);
+      armLocalTimerEndAlert();
     } else {
       pauseTimer();
     }
@@ -3012,6 +3150,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
@@ -3147,10 +3287,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
   }
   function finishSession(completed, reason){
     timerRunning = false;
     clearInterval(tickHandle);
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
     const startedAtMs = sessionStartClock || (Date.now() - elapsedMs);
     const key = fmtDate(new Date(startedAtMs));
     if(!state.sessions[key]) state.sessions[key] = [];
@@ -3181,7 +3325,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const flagKey = 'sb-notified-goal-'+key;
           if(!localStorage.getItem(flagKey)){
             localStorage.setItem(flagKey, '1');
-            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+            notifyOthers(`${me.name} hit their daily goal today 🔥`, null, 'studyStart');
           }
         }
       }
@@ -4424,7 +4568,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
             await saveSharedTasks(dateKey, list);
           }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
+          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`, null, 'taskComment');
         } else {
           selectedDays.forEach(day=>{
             state.weeklyTemplate.push({
@@ -4433,7 +4577,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
           });
           saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
+          notifyOthers(`${me.name} added a weekly study block: ${taskName}`, null, 'taskComment');
         }
       } else if(together){
         const dateKey = fmtDate(selectedDate);
@@ -4444,7 +4588,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           completions: {}
         });
         await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`, null, 'taskComment');
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
@@ -4454,7 +4598,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           linkedGoalId: linkGoalId
         });
         saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`);
+        notifyOthers(`${me.name} added a task: ${taskName}`, null, 'taskComment');
       }
       render();
       close();

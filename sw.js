@@ -4,7 +4,7 @@
 // plain Web Push event, so we do NOT need the separate firebase-messaging-sw
 // script — this one file handles both).
 
-const CACHE_NAME = 'study-board-v3'; // bumped so old installs drop their stale cache
+const CACHE_NAME = 'study-board-v8'; // bumped so old installs drop their stale cache
 const APP_SHELL = [
   './index.html',
   './manifest.json',
