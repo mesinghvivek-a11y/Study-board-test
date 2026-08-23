@@ -446,7 +446,7 @@
 
   /* ---------- distraction-free focus mode ---------- */
   .focus-toggle-btn{
-    display:none; width:100%; margin-top:12px; background:var(--accent-dim); border:1px solid var(--accent);
+    display:none; width:100%; margin-top:18px; background:var(--accent-dim); border:1px solid var(--accent);
     color:var(--accent); font-size:13px; font-weight:700; padding:11px 0; border-radius:12px; cursor:pointer; letter-spacing:0.3px;
     position:relative; z-index:2;
   }
@@ -538,7 +538,7 @@
 
   /* ---------- Group switcher bar ---------- */
   .group-bar{
-    display:flex; align-items:center; gap:8px; width:calc(100% - 32px); margin:0 16px 12px;
+    display:none; align-items:center; gap:8px; width:calc(100% - 32px); margin:0 16px 12px;
   }
   .group-bar-main{
     flex:1; display:flex; align-items:center; justify-content:space-between; min-width:0;
@@ -590,6 +590,27 @@
     display:flex; gap:8px; overflow-x:auto; padding:0 16px 14px; scrollbar-width:none;
   }
   .people-row::-webkit-scrollbar{ display:none; }
+  .people-group-chip{
+    flex:0 0 auto; display:flex; align-items:center; gap:6px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    padding:6px 9px; cursor:pointer; color:var(--chalk); font-size:11px; font-weight:700;
+  }
+  .people-group-chip .group-mini{ max-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .people-group-chip .group-mini-info{ width:20px; height:20px; border:0; border-radius:50%; background:transparent; color:var(--chalk-faint); font-size:14px; cursor:pointer; padding:0; }
+  .timer-link-row{ display:flex; align-items:center; gap:8px; margin:-4px 0 14px; }
+  .timer-link-btn{ width:30px; height:30px; flex:0 0 auto; border-radius:9px; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); cursor:pointer; font-size:14px; }
+  .timer-link-btn.linked{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
+  .timer-link-label{ flex:1; min-width:0; font-size:11px; color:var(--chalk-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .task-actions{ width:30px; height:30px; flex:0 0 auto; border:1px solid var(--card-line); background:var(--card); color:var(--chalk-dim); border-radius:9px; cursor:pointer; font-size:18px; }
+  .task-progress-donut{ width:34px; height:34px; position:relative; flex:0 0 auto; }
+  .task-progress-donut svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .task-progress-donut .track{ fill:none; stroke:var(--card-line); stroke-width:4; }
+  .task-progress-donut .fill{ fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; }
+  .task-progress-donut .pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:var(--chalk); }
+  .week-nav-label-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; min-width:0; }
+  .week-nav-label-row{ display:flex; align-items:center; gap:6px; }
+  .week-nav-pen{ border:0; background:none; color:var(--chalk-faint); font-size:12px; cursor:pointer; padding:2px; }
+  .week-nav-range{ display:flex; justify-content:space-between; width:100%; padding:0 4px; font-size:9px; color:var(--chalk-faint); font-family:'JetBrains Mono'; }
   .person-chip{
     flex:0 0 auto; display:flex; align-items:center; gap:7px;
     background:var(--card); border:1px solid var(--card-line); border-radius:20px;
@@ -971,15 +992,19 @@
           <label>Subject</label>
           <select id="timerSubject"></select>
         </div>
+        <div class="timer-link-row">
+          <button type="button" class="timer-link-btn" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
+          <div class="timer-link-label" id="timerTaskLinkLabel">No daily task linked (optional)</div>
+        </div>
 
         <div class="field-row" id="countdownLenRow" style="display:none;">
-          <label>Length <button type="button" id="renamePresetsBtn" style="background:none; border:none; color:var(--accent); font-size:10px; cursor:pointer; text-transform:none; letter-spacing:0;">✏️ rename</button></label>
+          <label>Focus length</label>
           <div class="dur-chip-row" id="countdownLenChips">
-            <div class="dur-chip" data-min="10"><span class="dur-min">10 min</span><span class="dur-tag" data-tag-idx="0">10 markers</span></div>
-            <div class="dur-chip" data-min="15"><span class="dur-min">15 min</span><span class="dur-tag" data-tag-idx="1">15 marker</span></div>
-            <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag" data-tag-idx="2">recall</span></div>
-            <div class="dur-chip sel" data-min="60"><span class="dur-min">60 min</span><span class="dur-tag" data-tag-idx="3">study</span></div>
+            <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag">Focus</span></div>
+            <div class="dur-chip sel" data-min="60"><span class="dur-min">1 hour</span><span class="dur-tag">Focus</span></div>
+            <div class="dur-chip" data-custom="1"><span class="dur-min">Custom</span><span class="dur-tag">hour : minute</span></div>
           </div>
+          <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
         </div>
 
         <div class="timer-ring-wrap">
@@ -1026,7 +1051,7 @@
     <section class="screen" id="screen-week">
       <div class="week-nav" id="weekNav">
         <button class="week-nav-arrow" id="weekPrev">‹</button>
-        <div class="week-nav-label" id="weekNavLabel">This week</div>
+        <div class="week-nav-label-wrap"><div class="week-nav-label-row"><div class="week-nav-label" id="weekNavLabel">This week</div><button class="week-nav-pen" id="weekStartPen" title="Choose week start">✎</button></div><div class="week-nav-range"><span id="weekStartRange">Sun</span><span id="weekEndRange">Sat</span></div></div>
         <button class="week-nav-arrow" id="weekNext">›</button>
       </div>
       <div class="wk-section-head">
@@ -1081,7 +1106,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-screen="timer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>
-      TIMER
+      NOW
     </button>
     <button class="tab-btn" data-screen="today">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
@@ -1234,7 +1259,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
     weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
-    focusPresetNames: ['10 markers','15 marker','recall','study'] // editable labels for the 10/15/30/60min focus chips
+    focusPresetNames: ['30 min','1 hour','custom'],
+    weekStartDay: 0
   };
 
   let selectedDate = new Date();
@@ -2291,9 +2317,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function renderPeopleRow(){
     const el = document.getElementById('peopleRow');
     if(!me){ el.innerHTML=''; return; }
+    const groupName = activeGroupData?.name || 'Group';
     const others = usersList.filter(u=>u.id!==me.id);
     const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-    el.innerHTML = chips.map(c=>{
+    const groupChip = `<div class="people-group-chip" id="peopleGroupChip" title="Switch group"><span>👥</span><span class="group-mini">${escapeHtml(groupName)}</span><button class="group-mini-info" id="peopleGroupInfo" title="Group details">⋯</button></div>`;
+    el.innerHTML = groupChip + chips.map(c=>{
       const st = liveCache[c.id];
       const studying = !!(st && st.studying);
       const mins = liveMinutesFor(st);
@@ -2306,9 +2334,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
             <span class="p-today">${fmtHM(mins)} today</span>
           </span>
-        </div>
-      `;
+        </div>`;
     }).join('');
+    document.getElementById('peopleGroupChip')?.addEventListener('click', ()=>openGroupsModal());
+    document.getElementById('peopleGroupInfo')?.addEventListener('click', e=>{ e.stopPropagation(); document.getElementById('groupBarInfo')?.click(); });
     el.querySelectorAll('.person-chip').forEach(chip=>{
       chip.addEventListener('click', async ()=>{
         const id = chip.dataset.id;
@@ -2441,10 +2470,34 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return s ? s.name : 'General';
   }
 
+  function getWeekStartDay(){ return Number.isInteger(state.weekStartDay) ? state.weekStartDay : 0; }
+  function parseDateKey(key){
+    const [y,m,d]=String(key||'').split('-').map(Number);
+    return (y&&m&&d) ? new Date(y,m-1,d) : new Date();
+  }
+  function weekStartKeyWithStart(date,startDay){
+    const d=new Date(date); d.setHours(0,0,0,0);
+    const diff=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-diff);
+    return fmtDate(d);
+  }
+  function migrateWeekStartSetting(oldStart,newStart){
+    if(oldStart===newStart) return;
+    (state.weeklyTemplate||[]).forEach(b=>{
+      if(!b.weekStart) return;
+      const oldWeek=parseDateKey(b.weekStart);
+      const actual=new Date(oldWeek); actual.setDate(actual.getDate()+Number(b.day||0));
+      b.weekStart=weekStartKeyWithStart(actual,newStart);
+    });
+    (state.weeklyGoals||[]).forEach(g=>{
+      if(g.weekStart) g.weekStart=weekStartKeyWithStart(parseDateKey(g.weekStart),newStart);
+    });
+  }
   function weekStartKey(date){
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - d.getDay());
+    const start = getWeekStartDay();
+    const diff = (d.getDay() - start + 7) % 7;
+    d.setDate(d.getDate() - diff);
     return fmtDate(d);
   }
   function blocksForDate(date){
@@ -2492,7 +2545,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
-      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
+      const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       render();
@@ -2505,6 +2558,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let timerRunning = false;
   let elapsedMs = 0;
   let countdownTotalMs = 60*60*1000;
+  let linkedTaskId = null;
+  let customFocusMin = 60;
   let tickHandle = null;
   let lastTick = null;
 
@@ -2513,6 +2568,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
     document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
+    if(mode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
     updateRunningDeclutter();
@@ -2522,58 +2578,68 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // full Reset/Stop, both options stay visible so you can freely switch your mind.
   function updateRunningDeclutter(){
     const committed = timerRunning || elapsedMs > 0;
+    const countdownRow = document.getElementById('countdownLenRow');
+    if(countdownRow) countdownRow.style.display = (timerMode==='countdown' && !timerRunning && elapsedMs===0) ? 'block' : 'none';
     document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
     document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
-    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
-      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
-    });
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
-    if(timerRunning) return;
-    applyModeUI('stopwatch');
-    elapsedMs = 0;
-    renderTimerDigits();
+    if(timerRunning) return; applyModeUI('stopwatch'); elapsedMs=0; renderTimerDigits();
   });
   document.getElementById('modeCountdown').addEventListener('click', ()=>{
-    if(timerRunning) return;
-    applyModeUI('countdown');
-    elapsedMs = 0;
-    renderTimerDigits();
+    if(timerRunning) return; applyModeUI('countdown'); elapsedMs=0; renderTimerDigits(); updateRunningDeclutter();
   });
   document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       if(timerRunning) return;
       document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
       chip.classList.add('sel');
-      countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
+      if(chip.dataset.custom){
+        document.getElementById('customFocusWheel').style.display='block';
+        if(!window.__customFocusWheel) window.__customFocusWheel=createFocusDurationWheel(document.getElementById('customFocusWheel'), customFocusMin);
+        countdownTotalMs=customFocusMin*60000;
+      }else{
+        document.getElementById('customFocusWheel').style.display='none';
+        countdownTotalMs=parseInt(chip.dataset.min,10)*60000;
+      }
       renderTimerDigits();
     });
   });
   document.getElementById('timerSubject').addEventListener('change', renderRing);
-
-  function renderFocusPresetNames(){
-    const names = state.focusPresetNames || ['10 markers','15 marker','recall','study'];
-    document.querySelectorAll('#countdownLenChips .dur-tag').forEach(el=>{
-      const i = parseInt(el.dataset.tagIdx, 10);
-      if(names[i]) el.textContent = names[i];
-    });
-  }
-  document.getElementById('renamePresetsBtn').addEventListener('click', (e)=>{
-    e.preventDefault();
-    const names = (state.focusPresetNames || ['10 markers','15 marker','recall','study']).slice();
-    const mins = [10,15,30,60];
-    for(let i=0;i<4;i++){
-      const val = prompt(`Label for the ${mins[i]} min preset:`, names[i]);
-      if(val===null) break; // cancel stops the whole rename walk
-      if(val.trim()) names[i] = val.trim();
-    }
-    state.focusPresetNames = names;
-    saveState();
-    renderFocusPresetNames();
-  });
-
+  document.getElementById('timerTaskPin').addEventListener('click', openTimerTaskPicker);
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
   document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
+
+
+  function createFocusDurationWheel(container, initialMin){
+    const total = Math.max(1, Math.min(24*60, Number(initialMin)||60));
+    const ih = Math.floor(total/60), im = total%60;
+    container.innerHTML = `<div class="wheel-picker"><div class="wheel-col" id="focus-h"></div><div class="wheel-col" id="focus-m"></div><div class="wheel-highlight"></div></div><div class="wheel-label" style="display:flex;gap:2px;"><span style="flex:1">Hour</span><span style="flex:1">Minute</span></div>`;
+    const hours=Array.from({length:25},(_,i)=>i), mins=Array.from({length:60},(_,i)=>pad(i));
+    let hVal=ih,mVal=im;
+    buildWheelColumn(container.querySelector('#focus-h'), hours, ih, v=>{hVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
+    buildWheelColumn(container.querySelector('#focus-m'), mins, im, v=>{mVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
+    return {getValue:()=>Math.max(1,hVal*60+mVal)};
+  }
+  function renderTimerTaskLink(){
+    const el=document.getElementById('timerTaskLinkLabel'), btn=document.getElementById('timerTaskPin');
+    if(!el||!btn) return;
+    const task=(blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId));
+    el.textContent=task ? `Linked: ${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min` : 'No daily task linked (optional)';
+    btn.classList.toggle('linked',!!task);
+  }
+  function openTimerTaskPicker(){
+    if(!isViewingSelf()) return;
+    const today=new Date(), tasks=blocksForDateIn(state,today);
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link to today’s task</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 14px;">Optional — time logged here will update the task automatically.</div><div id="timer-task-options"></div><div class="modal-actions"><button class="btn btn-ghost" id="timer-task-skip">Skip / unlink</button></div></div>`;
+    document.body.appendChild(backdrop); const wrap=backdrop.querySelector('#timer-task-options');
+    wrap.innerHTML=tasks.length ? tasks.map(t=>`<button type="button" class="btn btn-ghost timer-task-option" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;">${escapeHtml(t.label||subjectNameIn(t.subject,state))}<span style="float:right;color:var(--chalk-faint);">${t.duration||30} min</span></button>`).join('') : `<div class="empty" style="padding:20px 0;">No tasks scheduled for today.</div>`;
+    function close(){backdrop.remove();}
+    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#timer-task-skip').addEventListener('click',()=>{linkedTaskId=null;renderTimerTaskLink();close();});
+    wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{linkedTaskId=b.dataset.id;renderTimerTaskLink();close();}));
+  }
 
   const RING_R = 100;
   const RING_C = 2 * Math.PI * RING_R;
@@ -2857,6 +2923,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         endedAt: endedAt
       };
       state.sessions[key].push(justLoggedSession);
+      updateLinkedTaskProgress(key, justLoggedSession.linkedTaskId);
       saveState();
       const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
       if(dailyGoalMin > 0){
@@ -2877,6 +2944,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     exitFocusMode();
     renderTimerDigits();
     renderSessions();
+    renderTaskList();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
@@ -2887,52 +2955,26 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   function promptSessionNote(session, dateKey){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const friend = !isViewingSelf() ? usersList.find(u=>u.id===viewingId) : null;
-    const recapHtml = friend ? `
-        <div class="recap-row">
-          <div class="recap-col mine">
-            <div class="recap-who">You</div>
-            <div class="recap-time">${fmtHM(todayTotalMinutes())}</div>
-            <div class="recap-sub">today</div>
-          </div>
-          <div class="recap-col friend">
-            <div class="recap-who">${escapeHtml(friend.name)}</div>
-            <div class="recap-time">${fmtHM(liveMinutesFor(liveCache[friend.id]))}</div>
-            <div class="recap-sub">today</div>
-          </div>
-        </div>` : '';
-    backdrop.innerHTML = `
-      <div class="modal">
-        <h3>What did you cover?</h3>
-        <div class="field-row">
-          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
-          <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
-          <div id="note-error" style="display:none; color:var(--danger); font-size:11.5px; margin-top:8px;">A quick note is required to log this session — it's how you track real progress.</div>
-        </div>
-        ${recapHtml}
-        <div class="modal-actions">
-          <button class="btn btn-primary" id="note-save" style="width:100%;">Save & continue</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('#note-save').addEventListener('click', async ()=>{
-      const text = backdrop.querySelector('#note-input').value.trim();
-      if(!text){
-        backdrop.querySelector('#note-error').style.display = 'block';
-        backdrop.querySelector('#note-input').focus();
-        return;
-      }
-      const list = state.sessions[dateKey] || [];
-      const s = list.find(x=>x.id===session.id);
-      if(s) s.note = text;
-      await flushStateNow();
-      renderSessions();
-      close();
-    });
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    const task= session.linkedTaskId ? blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===session.linkedTaskId) : null;
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>What did you do?</h3><div class="field-row"><label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min${task?' · '+escapeHtml(task.label||subjectNameIn(task.subject,state)):''}</label><textarea id="note-input" rows="3" placeholder="Optional note — you can skip this" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;"></textarea></div><div class="modal-actions"><button class="btn btn-ghost" id="note-skip">Skip</button><button class="btn btn-primary" id="note-save">Save</button></div></div>`;
+    document.body.appendChild(backdrop); function close(){backdrop.remove();}
+    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#note-skip').addEventListener('click',close);
+    backdrop.querySelector('#note-save').addEventListener('click',async()=>{const text=backdrop.querySelector('#note-input').value.trim(); const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(s&&text)s.note=text; await flushStateNow(); renderSessions(); close();});
+  }
+  function updateLinkedTaskProgress(dateKey, taskId){
+    if(!taskId) return;
+    const task=blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===taskId); if(!task) return;
+    const total=(state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
+    const target=Number(task.duration||30);
+    state.completion[dateKey+'|'+task.id] = total >= target ? 'done' : undefined;
+    if(state.completion[dateKey+'|'+task.id]===undefined) delete state.completion[dateKey+'|'+task.id];
+  }
+  function linkedTaskProgress(data,dateKey,task){
+    const target=Number(task.duration||30);
+    const logged=((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===task.id).reduce((sum,s)=>sum+(s.duration||0),0);
+    return {logged,target,pct:target?Math.min(100,Math.round(logged/target*100)):0,done:logged>=target};
   }
 
   // ---------- live snapshot sharing: settings, camera engine, milestones, nudges ----------
@@ -3406,157 +3448,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   async function renderTaskList(){
-    const el = document.getElementById('taskList');
-    const dateKey = fmtDate(selectedDate);
-    const myBlocks = blocksForDateIn(state, selectedDate);
-    const sharedTasks = await loadSharedTasks(dateKey);
-
-    let html = '';
-
-    // ---- my tasks ----
-    html += `<h3 class="section-title">My tasks</h3>`;
-    if(myBlocks.length===0 && sharedTasks.length===0){
-      html += `<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>tap + to add a task for this day</div>`;
-    } else if(myBlocks.length===0){
-      html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">no tasks of your own yet — tap +</div>`;
-    } else {
-      html += myBlocks.map(b=>{
-        const compKey = dateKey+'|'+b.id;
-        const status = state.completion[compKey]; // undefined | 'done' | 'missed'
-        return `
-          <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-            <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
-            <div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
-            <div class="body">
-              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
-              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
-              ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
-            </div>
-            <button class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬</button>
-            <button class="task-edit" data-id="${b.id}" data-source="${b.source}" title="Edit">✏️</button>
-            <button class="task-del" data-id="${b.id}" data-source="${b.source}">×</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // ---- shared "together" tasks ----
-    if(sharedTasks.length){
-      html += `<h3 class="section-title">Doing together</h3>`;
-      html += sharedTasks.map(t=>{
-        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
-        const rowHtml = people.map(p=>{
-          const st = (t.completions||{})[p.id];
-          const mine = p.id===me.id;
-          return `<div class="who-chip ${st||''} ${mine?'mine':''}" data-shared-task="${mine? t.id : ''}" title="${p.name}">
-            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
-            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
-          </div>`;
-        }).join('');
-        return `
-          <div class="task-card shared">
-            <div class="time">${timeColHtml(t.start, t.duration||30)}</div>
-            <div class="body">
-              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
-              <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
-              <div class="who-row">${rowHtml}</div>
-            </div>
-            ${t.createdBy===me.id ? `<button class="task-del" data-shared-del="${t.id}">×</button>` : ''}
-            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // ---- friends' tasks, read-only ----
-    const friends = usersList.filter(u=>u.id!==me.id);
-    for(const u of friends){
-      await fetchFriendBoard(u.id);
-      const fb = friendCache[u.id] || {};
-      const fBlocks = blocksForDateIn(fb, selectedDate);
-      html += `<h3 class="section-title">${u.name}'s tasks</h3>`;
-      if(fBlocks.length===0){
-        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
-      } else {
-        html += fBlocks.map(b=>{
-          const compKey = dateKey+'|'+b.id;
-          const status = (fb.completion||{})[compKey];
-          return `
-            <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-              <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
-              <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
-              <div class="body">
-                <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
-                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${subjectNameIn(b.subject, fb)} · ${b.duration||30} min</div>
-              </div>
-              <button class="cmt-btn" data-cid="${commentsIdFor(b.id, u.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,fb))}">💬</button>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    el.innerHTML = html;
-
-    // ---- handlers: my own tasks ----
-    el.querySelectorAll('.check').forEach(c=>{
-      if(c.style.pointerEvents==='none') return;
-      c.addEventListener('click', ()=>{
-        const k = c.dataset.key;
-        state.completion[k] = nextStatus(state.completion[k]);
-        saveState();
-        renderTaskList();
-        renderWeeklyGoalsList();
-      });
-    });
-    el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        const dateKey = fmtDate(selectedDate);
-        const block = source==='template'
-          ? state.weeklyTemplate.find(b=>b.id===id)
-          : (state.dailyExtra[dateKey]||[]).find(b=>b.id===id);
-        if(block) openAddModal(source==='template' ? 'template' : 'extra', block);
-      });
-    });
-    el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        if(source==='template'){
-          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
-        } else {
-          const key = fmtDate(selectedDate);
-          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
-        }
-        saveState();
-        renderTaskList();
-        renderWeeklyGoalsList();
-      });
-    });
-
-    // ---- handlers: shared "together" task — tick your own status ----
-    el.querySelectorAll('.who-chip[data-shared-task]').forEach(chip=>{
-      const taskId = chip.dataset.sharedTask;
-      if(!taskId) return; // not your own avatar — read only
-      chip.addEventListener('click', async ()=>{
-        const list = await loadSharedTasks(dateKey);
-        const t = list.find(x=>x.id===taskId);
-        if(!t) return;
-        t.completions = t.completions || {};
-        t.completions[me.id] = nextStatus(t.completions[me.id]);
-        await saveSharedTasks(dateKey, list);
-        renderTaskList();
-      });
-    });
-    el.querySelectorAll('.task-del[data-shared-del]').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const list = await loadSharedTasks(dateKey);
-        await saveSharedTasks(dateKey, list.filter(x=>x.id!==btn.dataset.sharedDel));
-        renderTaskList();
-      });
-    });
-
+    const el=document.getElementById('taskList'); const dateKey=fmtDate(selectedDate);
+    const data=activeData();
+    const blocks=blocksForDateIn(data,selectedDate);
+    let html=`<h3 class="section-title">${isViewingSelf()?'My tasks':escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name||'User')+'’s tasks'}</h3>`;
+    if(!blocks.length){ html+=`<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${isViewingSelf()?'tap + to add a task for this day':''}</div>`; el.innerHTML=html; return; }
+    html+=blocks.map(b=>{
+      const compKey=dateKey+'|'+b.id, status=(data.completion||{})[compKey];
+      const prog=linkedTaskProgress(data,dateKey,b); const hasLinked=(data.sessions||{})[dateKey]?.some(s=>s.linkedTaskId===b.id);
+      const progressVisual=hasLinked ? `<div class="task-progress-donut"><svg viewBox="0 0 50 50"><circle class="track" cx="25" cy="25" r="20"></circle><circle class="fill" cx="25" cy="25" r="20" stroke-dasharray="125.66" stroke-dashoffset="${125.66*(1-prog.pct/100)}"></circle></svg><div class="pct">${prog.pct}%</div></div>` : `<div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>`;
+      return `<div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}"><div class="time">${timeColHtml(b.start,b.duration||30)}</div>${progressVisual}<div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,data))}</div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,data)}"></span>${escapeHtml(subjectNameIn(b.subject,data))} · ${b.duration||30} min${hasLinked?' · '+prog.logged+' min logged':''}</div>${b.linkedGoalId?`<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,data))}</div>`:''}</div>${isViewingSelf()?`<button class="task-actions" data-id="${b.id}" data-source="${b.source}" title="Edit, comment or delete">⋯</button>`:`<button class="cmt-btn" data-cid="${commentsIdFor(b.id,viewingId||me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>`}</div>`;
+    }).join('');
+    el.innerHTML=html;
+    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{state.completion[c.dataset.key]=nextStatus(state.completion[c.dataset.key]);saveState();renderTaskList();renderWeeklyGoalsList();}));
+    if(isViewingSelf()) el.querySelectorAll('.task-actions').forEach(btn=>btn.addEventListener('click',()=>openTaskActions(btn.dataset.id,btn.dataset.source)));
     attachCommentButtons(el);
+  }
+  function openTaskActions(id,source){
+    const dateKey=fmtDate(selectedDate); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===id); if(!block)return;
+    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal" style="text-align:center"><button class="close-x">×</button><h3>${escapeHtml(block.label||subjectNameIn(block.subject,state))}</h3><button class="btn btn-ghost" id="ta-edit" style="width:100%;margin-bottom:8px">✏️ Edit</button><button class="btn btn-ghost" id="ta-comment" style="width:100%;margin-bottom:8px">💬 Comment</button><button class="btn btn-ghost" id="ta-delete" style="width:100%;color:var(--c1)">Delete</button></div>`;
+    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#ta-edit').addEventListener('click',()=>{close();openAddModal(source==='template'?'template':'extra',block);});
+    backdrop.querySelector('#ta-comment').addEventListener('click',()=>{close();openCommentsModal(commentsIdFor(block.id,me.id),block.label||subjectNameIn(block.subject,state));});
+    backdrop.querySelector('#ta-delete').addEventListener('click',()=>{if(source==='template')state.weeklyTemplate=state.weeklyTemplate.filter(x=>x.id!==id);else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(x=>x.id!==id);saveState();close();renderTaskList();renderWeeklyGoalsList();});
   }
 
   // ---------- WEEK SCREEN ----------
@@ -3564,7 +3479,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function startOfWeek(date, offsetWeeks){
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - d.getDay() + offsetWeeks*7);
+    const start = getWeekStartDay();
+    const diff = (d.getDay() - start + 7) % 7;
+    d.setDate(d.getDate() - diff + offsetWeeks*7);
     return d;
   }
 
@@ -3640,8 +3557,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const labelEl = document.getElementById('weekNavLabel');
     if(labelEl){
-      labelEl.textContent = weekOffset===0 ? 'This week'
-        : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
+      labelEl.textContent = weekOffset===0 ? 'This week' : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
+      const sr=document.getElementById('weekStartRange'), er=document.getElementById('weekEndRange');
+      if(sr) sr.textContent=`${DAY_NAMES[weekStart.getDay()]} · ${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}`;
+      if(er) er.textContent=`${DAY_NAMES[weekEnd.getDay()]} · ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
     }
 
 
@@ -3788,6 +3707,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
     });
   }
+  document.getElementById('weekStartPen').addEventListener('click',()=>{
+    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div class="field-row"><label>Choose the first day of your week</label><select id="week-start-select">${DAY_NAMES.map((n,i)=>`<option value="${i}" ${getWeekStartDay()===i?'selected':''}>${n}</option>`).join('')}</select></div><div class="modal-actions"><button class="btn btn-ghost" id="ws-cancel">Cancel</button><button class="btn btn-primary" id="ws-save">Save</button></div></div>`;
+    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.querySelector('#ws-cancel').addEventListener('click',close);backdrop.querySelector('#ws-save').addEventListener('click',()=>{const nextStart=Number(backdrop.querySelector('#week-start-select').value); const oldStart=getWeekStartDay(); migrateWeekStartSetting(oldStart,nextStart); state.weekStartDay=nextStart; saveState();weekOffset=0;openGoalCardId=null;renderWeeklyGoalsList();close();});
+  });
   document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
   document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
 
@@ -4290,6 +4214,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderGoalCard();
 
     renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
+    renderTimerTaskLink();
     renderSessions();
     renderDayScroller();
     renderTaskList();
