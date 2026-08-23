@@ -131,7 +131,7 @@
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
   .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
-  .ring-outer{ position:relative; width:230px; height:230px; }
+  .ring-outer{ position:relative; width:270px; height:270px; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
   .ring-progress{
@@ -148,7 +148,7 @@
     align-items:center; justify-content:center; text-align:center;
   }
   .timer-digits{
-    font-family:'JetBrains Mono'; font-weight:700; font-size:38px; letter-spacing:0.5px;
+    font-family:'JetBrains Mono'; font-weight:700; font-size:42px; letter-spacing:0.5px;
     color:var(--chalk);
   }
   .timer-label{ font-size:12px; color:var(--chalk-faint); margin-top:6px; letter-spacing:0.5px; }
@@ -156,7 +156,7 @@
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:230px; text-align:center;
+    min-height:270px; text-align:center;
   }
   .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
   .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
@@ -963,7 +963,13 @@
   .cmt-item b{ color:var(--accent); }
 
   /* ---------- v6 NOW / LIVE layout ---------- */
-  .group-bar, #peopleRow{ display:none !important; }
+  .group-bar{ display:none !important; }
+  .shared-people-wrap{ display:flex; align-items:center; gap:6px; margin:0 16px 12px; position:relative; z-index:6; }
+  .shared-people-row{ flex:1; min-width:0; padding:0 0 2px; }
+  .people-collapse-btn{ flex:0 0 auto; width:28px; height:46px; border-radius:12px; background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint); cursor:pointer; font-size:18px; line-height:1; }
+  .people-collapse-btn:active{ background:var(--accent-dim); color:var(--accent); }
+  .shared-people-wrap.collapsed .shared-people-row{ display:none; }
+  .shared-people-wrap.collapsed .people-collapse-btn{ width:30px; margin-left:auto; }
   .live-group-shell{ margin:0 0 14px; }
   .live-group-head{ display:flex; justify-content:flex-start; }
   .live-group-btn{
@@ -986,9 +992,9 @@
   .timer-top-actions{ display:none !important; }
   .timer-ring-wrap{ position:relative; padding-top:8px; margin-bottom:8px; }
   .timer-frame-focus-btn{
-    display:none; position:absolute; right:8px; top:4px; z-index:30;
-    width:42px; height:42px; padding:0; border-radius:50%;
-    align-items:center; justify-content:center; font-size:0;
+    display:none; position:absolute; right:4px; top:4px; z-index:30;
+    width:auto; min-width:88px; height:38px; padding:0 12px; border-radius:19px;
+    align-items:center; justify-content:center; gap:5px; font-size:12px; font-weight:800;
     background:var(--c4); border:1px solid rgba(184,160,217,.8); color:#171321;
     box-shadow:0 6px 18px rgba(0,0,0,.18);
   }
@@ -1009,6 +1015,11 @@
   body.focus-active .timer-link-float-wrap,
   body.focus-active .timer-frame-focus-btn{ display:none !important; }
   #timerControlsWrap .timer-controls{ margin-bottom:16px; }
+  .timer-link-center{ flex:0 0 64px; min-width:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; margin:0 2px; }
+  .timer-link-center .timer-link-float{ width:52px; height:52px; border-radius:50%; }
+  .timer-link-center .timer-link-float-status{ max-width:74px; text-align:center; }
+  #timerControlsWrap .timer-controls{ align-items:center; margin-bottom:18px; }
+
   #goalCard{ margin-top:8px; }
 
   /* Group action sheet */
@@ -1067,7 +1078,11 @@
     </div>
   </header>
 
-  <!-- Group + people controls intentionally live only on the Live page now. -->
+  <!-- User profile row for NOW / TODAY / WEEK. Group controls stay only on LIVE. -->
+  <div class="shared-people-wrap" id="sharedPeopleWrap">
+    <div class="people-row shared-people-row" id="peopleRow"></div>
+    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people">‹</button>
+  </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
 
@@ -1113,13 +1128,12 @@
           </div>
         </div>
 
-        <div class="timer-link-float-wrap" id="timerLinkFloatWrap">
-          <button type="button" class="timer-link-float" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
-          <span class="timer-link-float-status" id="timerTaskLinkLabel">Not linked</span>
-        </div>
-
         <div class="timer-controls">
           <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
+          <div class="timer-link-center" id="timerLinkFloatWrap">
+            <button type="button" class="timer-link-float" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
+            <span class="timer-link-float-status" id="timerTaskLinkLabel">Not linked</span>
+          </div>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
 
@@ -2087,6 +2101,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderLiveGroupPanel();
   }
   document.getElementById('liveGroupBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); openLiveGroupMenu(); });
+  document.getElementById('peopleCollapseBtn')?.addEventListener('click', (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    sharedPeopleCollapsed=!sharedPeopleCollapsed;
+    renderPeopleRow();
+  });
 
   function openGroupsModal(jumpToGroupId){
     const backdrop = document.createElement('div');
@@ -2498,28 +2517,38 @@ window.storage = storage; // keep the rest of the app's code unchanged
     e.stopPropagation();
     if(typeof openGroupsModal==='function') openGroupsModal();
   });
+  let sharedPeopleCollapsed = false;
   function renderPeopleRow(){
-    const el = document.getElementById('livePeopleRow');
-    if(!el){ return; }
-    if(!me || currentScreen!=='live' || liveGroupUsersHidden){ el.innerHTML=''; if(currentScreen!=='live' || liveGroupUsersHidden) el.style.display='none'; return; }
-    el.style.display='flex';
-    const others = usersList.filter(u=>u.id!==me.id);
-    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-    el.innerHTML = chips.map(c=>{
-      const st = liveCache[c.id];
-      const studying = !!(st && st.studying);
-      const mins = liveMinutesFor(st);
-      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
-      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
-      return `<div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${avatarInner}</span><span class="p-meta"><span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span><span class="p-today">${fmtHM(mins)} today</span></span></div>`;
-    }).join('');
-    el.querySelectorAll('.person-chip').forEach(chip=>{
-      chip.addEventListener('click', async ()=>{
+    const shared = document.getElementById('peopleRow');
+    const live = document.getElementById('livePeopleRow');
+    const renderInto = (el, visible)=>{
+      if(!el) return;
+      if(!visible || !me){ el.innerHTML=''; el.style.display='none'; return; }
+      el.style.display='flex';
+      const others = usersList.filter(u=>u.id!==me.id);
+      const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
+      el.innerHTML = chips.map(c=>{
+        const st = liveCache[c.id];
+        const studying = !!(st && st.studying);
+        const mins = liveMinutesFor(st);
+        const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
+        const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
+        return `<div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${avatarInner}</span><span class="p-meta"><span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span><span class="p-today">${fmtHM(mins)} today</span></span></div>`;
+      }).join('');
+      el.querySelectorAll('.person-chip').forEach(chip=>chip.addEventListener('click', async ()=>{
         const id=chip.dataset.id;
         if(id===me.id){ viewingId=null; render(); return; }
         viewingId=id; await fetchFriendBoard(id); render();
-      });
-    });
+      }));
+    };
+    renderInto(shared, currentScreen!=='live');
+    renderInto(live, currentScreen==='live' && !liveGroupUsersHidden);
+    const wrap=document.getElementById('sharedPeopleWrap');
+    if(wrap){
+      wrap.classList.toggle('collapsed', sharedPeopleCollapsed && currentScreen!=='live');
+      const b=document.getElementById('peopleCollapseBtn');
+      if(b) b.textContent = sharedPeopleCollapsed ? '›' : '‹';
+    }
   }
 
   function renderSnapRow(){
@@ -3108,6 +3137,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     elapsedMs = 0;
     sessionStartClock = null;
     document.getElementById('startBtn').textContent = 'Start';
+    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
+    if(timerMode==='countdown') document.getElementById('countdownLenChips').style.display='flex';
+    document.getElementById('customFocusWheel').style.display='none';
     setStatusText('ready');
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
@@ -3158,6 +3190,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
+    // Restore the normal setup state immediately after a stopped/completed session.
+    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
+    document.getElementById('customFocusWheel').style.display='none';
+    document.getElementById('countdownLenChips').style.display = timerMode==='countdown' ? 'flex' : 'none';
     exitFocusMode();
     renderTimerDigits();
     renderSessions();
@@ -3610,6 +3646,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
         <div class="field-row">
+          <label>Linked daily target</label>
+          <select id="es-linked">
+            <option value="">Not linked</option>
+            ${blocksForDateIn(state, parseDateKey(dateKey)).map(t=>`<option value="${t.id}" ${session.linkedTaskId===t.id?'selected':''}>${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-row">
           <label>Note</label>
           <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(session.note||'')}</textarea>
         </div>
@@ -3637,9 +3680,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const newSubject = backdrop.querySelector('#es-subject').value;
       const newDuration = Math.max(1, parseInt(backdrop.querySelector('#es-duration').value||'1',10));
       const newNote = backdrop.querySelector('#es-note').value.trim();
-      const key = fmtDate(new Date());
+      const newLinked = backdrop.querySelector('#es-linked').value || null;
+      const key = dateKey;
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
+      if(s){
+        s.linkedTaskId = newLinked;
+        s.subject = newLinked ? ((blocksForDateIn(state, parseDateKey(key)).find(t=>t.id===newLinked)||{}).subject || newSubject) : newSubject;
+        s.duration = newDuration;
+        s.note = newNote || null;
+        updateLinkedTaskProgress(key, s.linkedTaskId);
+      }
       await flushStateNow();
       renderSessions();
       renderGoalCard();
@@ -4414,6 +4464,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // ---------- master render ----------
   function render(){
     renderPeopleRow(); renderSnapRow();
+    // Group selector remains Live-only; never inject a group control into NOW/TODAY/WEEK.
+    renderLiveGroupPanel();
 
     const banner = document.getElementById('viewingBanner');
     if(currentScreen==='week' && !isViewingSelf()){
