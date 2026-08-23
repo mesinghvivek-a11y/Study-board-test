@@ -897,68 +897,6 @@
   .cmt-item{ font-size:13px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
   .cmt-item b{ color:var(--accent); }
 </style>
-<style id="studyboard-vnext-css">
-/* ---------- vNext minimal UI ---------- */
-.group-bar-vnext-note{font-size:10px;color:var(--chalk-faint);margin-top:2px}
-.people-row-wrap-vnext{display:flex;align-items:center;gap:5px;margin:0 0 12px}
-.people-row-wrap-vnext .people-row{flex:1;min-width:0;margin:0}
-.people-collapse-btn{width:24px;height:54px;flex:0 0 24px;border:none;border-radius:12px;background:var(--card);color:var(--chalk-faint);cursor:pointer;font-size:13px;border:1px solid var(--card-line)}
-.people-row-wrap-vnext.collapsed .people-row{overflow:hidden}
-.people-row-wrap-vnext.collapsed .people-row .person-chip{display:none}
-.people-row-wrap-vnext.collapsed .people-row .person-chip:first-child{display:flex}
-.people-row-wrap-vnext.collapsed .people-row{justify-content:flex-start}
-#screen-live .group-bar{margin:0 0 12px}
-#screen-live .group-bar + .live-mini-timer{margin-top:8px}
-.week-nav-vnext{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.week-nav-vnext .week-range-edge{font-size:10px;color:var(--chalk-faint);white-space:nowrap}
-.week-nav-vnext .week-center{flex:1;text-align:center;font-family:'Kalam';font-size:15px;color:var(--chalk)}
-.week-start-btn{width:28px;height:28px;border-radius:9px;border:1px solid var(--card-line);background:var(--card);color:var(--chalk-faint);cursor:pointer}
-.now-mode-switch-vnext{margin-bottom:8px}
-#timerSubject{display:none!important}
-#timerSubject + *{display:none}
-#countdownLenRow{margin-top:4px}
-#countdownLenChips{display:flex;gap:8px;flex-wrap:wrap}
-#countdownLenChips .dur-chip{min-width:86px}
-#countdownLenChips .dur-chip.custom-chip{border-style:dashed}
-#timerControlsWrap .mode-switch,.now-setup-only{transition:opacity .15s,transform .15s,max-height .15s}
-#timerControlsWrap.vnext-committed .mode-switch,#timerControlsWrap.vnext-committed #countdownLenRow{display:none!important}
-.timer-ring-wrap-vnext{position:relative}
-.timer-ring-wrap-vnext .ring-outer,.timer-ring-wrap-vnext .stopwatch-face{width:300px;max-width:78vw;height:300px;min-height:300px}
-.timer-ring-wrap-vnext .ring-svg{width:300px;height:300px}
-.timer-ring-wrap-vnext .focus-toggle-btn{position:absolute;right:6px;top:6px;z-index:4;display:none;width:auto;margin:0;border-radius:999px;padding:8px 12px;font-size:12px;background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);box-shadow:none}
-.timer-ring-wrap-vnext .focus-toggle-btn.visible{display:block}
-body.focus-active .timer-ring-wrap-vnext .focus-toggle-btn{display:none!important}
-.timer-controls-vnext{display:grid!important;grid-template-columns:1fr 54px 1fr;gap:10px;align-items:center;margin-top:10px!important}
-.link-target-btn{width:54px;height:54px;border-radius:50%;border:1px solid #5f7388;background:#263649;color:#8fd5ff;display:none;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18)}
-.link-target-btn.active{display:flex;background:#163f55;border-color:#38bdf8;color:#7dd3fc}
-.link-target-btn small{display:block;font-size:9px;line-height:1.1}
-.link-target-btn.linked{background:#174d35;border-color:#34d399;color:#86efac}
-.vnext-link-label{position:absolute;left:50%;transform:translateX(-50%);bottom:-18px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:var(--chalk-faint);pointer-events:none}
-body.focus-active .timer-controls-vnext .link-target-btn{display:none!important}
-.focus-pill-vnext{font-weight:700;letter-spacing:.2px}
-.session-link-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#86efac;margin-top:5px}
-.task-progress-card{position:relative;overflow:hidden;border-radius:14px;border:1px solid var(--card-line);background:var(--card);margin-bottom:9px;min-height:74px}
-.task-progress-card::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--task-pct,0%);background:linear-gradient(90deg,rgba(52,211,153,.18),rgba(56,189,248,.14));pointer-events:none}
-.task-progress-card.done::before{background:linear-gradient(90deg,rgba(52,211,153,.28),rgba(16,185,129,.18))}
-.task-progress-inner{position:relative;display:grid;grid-template-columns:72px 34px 1fr 34px;align-items:center;gap:8px;padding:11px 10px;z-index:1}
-.task-progress-card .time{font-family:'JetBrains Mono';font-size:10px;color:var(--chalk-faint)}
-.task-progress-card .check{width:28px;height:28px;border-radius:50%;border:1px solid var(--card-line);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--chalk);background:rgba(0,0,0,.08)}
-.task-progress-card .check.done{background:var(--c1);color:var(--ink);border-color:var(--c1)}
-.task-progress-card .body .name{font-weight:700;font-size:13px;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.task-progress-card .body .meta{font-size:10.5px;color:var(--chalk-faint);margin-top:4px}
-.task-progress-card .progress-note{font-size:10px;color:var(--chalk-dim);margin-top:3px}
-.task-more{width:30px;height:30px;border-radius:9px;border:none;background:transparent;color:var(--chalk-faint);cursor:pointer;font-size:18px}
-.task-menu-vnext{position:fixed;z-index:60;min-width:128px;background:var(--board-2);border:1px solid var(--card-line);border-radius:12px;padding:4px;box-shadow:0 14px 36px rgba(0,0,0,.35)}
-.task-menu-vnext button{display:block;width:100%;border:none;background:none;color:var(--chalk);text-align:left;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12px}
-.task-menu-vnext button:hover{background:var(--card)}
-.custom-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.custom-time-grid .wheel-picker{height:180px;overflow-y:auto;scroll-snap-type:y mandatory;border:1px solid var(--card-line);border-radius:12px;background:var(--card);position:relative}
-.custom-time-grid .wheel-picker .opt{height:40px;line-height:40px;text-align:center;color:var(--chalk-faint);scroll-snap-align:center;font-family:'JetBrains Mono';font-size:15px}
-.custom-time-grid .wheel-picker .opt.center{color:var(--chalk);font-size:18px;font-weight:700;background:var(--accent-dim)}
-.group-vnext-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.group-vnext-actions button{min-height:42px}
-.group-member-row-vnext{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-line);font-size:12px}
-</style>
 </head>
 <body>
 <div class="auth-screen" id="authScreen">
@@ -1143,7 +1081,7 @@ body.focus-active .timer-controls-vnext .link-target-btn{display:none!important}
   <nav class="tabs">
     <button class="tab-btn active" data-screen="timer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>
-      NOW
+      TIMER
     </button>
     <button class="tab-btn" data-screen="today">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
@@ -1167,7 +1105,7 @@ body.focus-active .timer-controls-vnext .link-target-btn{display:none!important}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -1515,6 +1453,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
+    const ns = await loadNotificationSettings(me.id);
+    const nsRows = [
+      ['timerEnd','⏱ Timer finished'],
+      ['taskApproaching','🔔 Task approaching (5 min)'],
+      ['studyStart','📚 Someone starts studying'],
+      ['taskActivity','📝 Tasks & comments'],
+      ['groupActivity','👥 Group join/leave']
+    ];
+    const nsWrap = backdrop.querySelector('#notifSettingsRows');
+    if(nsWrap){ nsWrap.innerHTML = nsRows.map(([k,label])=>`<label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;"><span>${label}</span><input type="checkbox" data-ns="${k}" ${ns[k]!==false?'checked':''}></label>`).join('');
+      nsWrap.querySelectorAll('[data-ns]').forEach(cb=>cb.addEventListener('change',()=>saveNotificationSettings(me.id, Object.fromEntries(nsRows.map(([k])=>[k, !!(nsWrap.querySelector('[data-ns=\"'+k+'\"]')||{}).checked])))));
+    }
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('#ql-cancel').addEventListener('click', close);
     backdrop.querySelector('#ql-join').addEventListener('click', async ()=>{
@@ -1834,26 +1784,33 @@ window.storage = storage; // keep the rest of the app's code unchanged
       return snap.exists() ? (snap.data().items || []) : [];
     }catch(e){ return []; }
   }
-  async function pushNotification(uid, text){
+  const NOTIF_DEFAULTS = { timerEnd:true, taskApproaching:true, studyStart:true, taskActivity:true, groupActivity:true };
+  async function loadNotificationSettings(uid){
+    try{ const snap = await getDoc(doc(db,'notificationSettings',uid)); return Object.assign({}, NOTIF_DEFAULTS, snap.exists()?snap.data():{}); }catch(e){ return Object.assign({}, NOTIF_DEFAULTS); }
+  }
+  async function saveNotificationSettings(uid, settings){
+    try{ await setDoc(doc(db,'notificationSettings',uid), settings, {merge:true}); return true; }catch(e){ console.error('notification settings save failed',e); return false; }
+  }
+  async function pushNotification(uid, text, type='taskActivity'){
     if(!uid) return;
     try{
       const items = await loadNotifications(uid);
-      items.push({ text, ts: Date.now(), read:false });
+      items.push({ text, type, ts: Date.now(), read:false });
       while(items.length > NOTIF_LIMIT) items.shift();
       await setDoc(doc(db, 'notifications', uid), { items });
     }catch(e){ console.error('notify failed', e); }
   }
-  async function notifyOthers(text, excludeId){
+  async function notifyOthers(text, excludeId, type='taskActivity'){
     const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
-    for(const u of targets){ await pushNotification(u.id, text); }
+    for(const u of targets){ await pushNotification(u.id, text, type); }
   }
   async function notifyForComment(cid, title, text){
     const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
     if(cid.startsWith('p_')){
       const ownerId = cid.split('_')[1];
-      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`, 'taskActivity');
     } else if(cid.startsWith('s_')){
-      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`, undefined, 'taskActivity');
     }
   }
   async function refreshBellBadge(){
@@ -1875,6 +1832,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
         <button class="close-x">×</button>
         <h3>Notifications</h3>
+        <div class="notif-settings" style="border:1px solid var(--card-line); border-radius:12px; padding:10px; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:7px;">Alerts & reminders</div>
+          <div id="notifSettingsRows"></div>
+        </div>
         ${permState==='default' ? `
           <div class="live-row" style="justify-content:space-between; margin-bottom:12px;">
             <span style="color:var(--chalk-dim);">Get alerts even when the app's closed</span>
@@ -2316,7 +2277,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
-    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`, 'groupActivity'); }
     return g;
   }
   async function leaveGroup(groupId){
@@ -2731,7 +2692,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const flagKey = 'sb-notified-first-session-'+todayKey;
     if(localStorage.getItem(flagKey)) return;
     localStorage.setItem(flagKey, '1');
-    notifyOthers(`${me.name} started studying today 📚`);
+    notifyOthers(`${me.name} started studying today 📚`, undefined, 'studyStart');
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
@@ -2927,10 +2888,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const flagKey = 'sb-notified-goal-'+key;
           if(!localStorage.getItem(flagKey)){
             localStorage.setItem(flagKey, '1');
-            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+            notifyOthers(`${me.name} hit their daily goal today 🔥`, undefined, 'taskActivity');
           }
         }
       }
+    }
+    if(completed && timerMode==='countdown' && me){
+      pushNotification(me.id, 'Focus timer finished — your focus session is complete.', 'timerEnd');
+      showToast('⏰ Focus timer finished');
     }
     setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
     document.getElementById('startBtn').textContent = 'Start';
@@ -4034,7 +3999,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           id:'wg_'+Date.now(), title, subject, type:'flexible', unit, target,
           weekStart: wk, note: note||null, manualAdjust:0, createdAt: Date.now()
         });
-        notifyOthers(`${me.name} set a new weekly goal: ${title}`);
+        notifyOthers(`${me.name} set a new weekly goal: ${title}`, undefined, 'taskActivity');
       }
       saveState();
       openGoalCardId = isEdit ? existingGoal.id : null;
@@ -4293,7 +4258,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
             await saveSharedTasks(dateKey, list);
           }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
+          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`, undefined, 'taskActivity');
         } else {
           selectedDays.forEach(day=>{
             state.weeklyTemplate.push({
@@ -4302,7 +4267,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
           });
           saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
+          notifyOthers(`${me.name} added a weekly study block: ${taskName}`, undefined, 'taskActivity');
         }
       } else if(together){
         const dateKey = fmtDate(selectedDate);
@@ -4313,7 +4278,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           completions: {}
         });
         await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`, undefined, 'taskActivity');
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
@@ -4323,7 +4288,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           linkedGoalId: linkGoalId
         });
         saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`);
+        notifyOthers(`${me.name} added a task: ${taskName}`, undefined, 'taskActivity');
       }
       render();
       close();
@@ -4655,331 +4620,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       loadMoreHistoryDays();
     }
   });
-})();
-
-
-/* ---------- Studyboard UI vNext overrides ---------- */
-(function(){
-  const V = { groupMoved:false, peopleWrapped:false, customMinutes:60 };
-
-  function ensurePeopleToggle(){
-    const row=document.getElementById('peopleRow');
-    if(!row || V.peopleWrapped) return;
-    const wrap=document.createElement('div');
-    wrap.className='people-row-wrap-vnext';
-    row.parentNode.insertBefore(wrap,row);
-    wrap.appendChild(row);
-    const btn=document.createElement('button');
-    btn.className='people-collapse-btn'; btn.id='peopleCollapseBtn'; btn.type='button'; btn.title='Collapse people row'; btn.textContent='‹';
-    wrap.appendChild(btn);
-    const key='sb-people-collapsed';
-    const setCollapsed=(yes)=>{wrap.classList.toggle('collapsed',yes);btn.textContent=yes?'›':'‹';btn.title=yes?'Expand people row':'Collapse people row';localStorage.setItem(key,yes?'1':'0');};
-    btn.addEventListener('click',()=>setCollapsed(!wrap.classList.contains('collapsed')));
-    setCollapsed(localStorage.getItem(key)==='1');
-    V.peopleWrapped=true;
-  }
-
-  function moveGroupBarToLive(){
-    const bar=document.querySelector('.group-bar');
-    const live=document.getElementById('screen-live');
-    if(!bar||!live||V.groupMoved) return;
-    live.insertBefore(bar,live.firstChild);
-    V.groupMoved=true;
-  }
-
-  function syncProfileAndGroupVisibility(){
-    ensurePeopleToggle(); moveGroupBarToLive();
-    const wrap=document.querySelector('.people-row-wrap-vnext');
-    if(wrap) wrap.style.display=(currentScreen==='timer'||currentScreen==='today'||currentScreen==='week')?'flex':'none';
-    const bar=document.querySelector('#screen-live .group-bar');
-    if(bar) bar.style.display=currentScreen==='live'?'flex':'none';
-  }
-
-  function setupNowMarkup(){
-    const wrap=document.getElementById('timerControlsWrap');
-    const timerRing=document.querySelector('.timer-ring-wrap');
-    if(!wrap||!timerRing) return;
-    timerRing.classList.add('timer-ring-wrap-vnext');
-    const subject=document.getElementById('timerSubject');
-    if(subject) subject.parentElement.style.display='none';
-    const ms=document.getElementById('modeStopwatch'); const mc=document.getElementById('modeCountdown');
-    if(ms) ms.textContent='Stopwatch'; if(mc) mc.textContent='Focus Timer';
-    const row=document.getElementById('countdownLenChips');
-    if(row && !row.dataset.vnext){
-      row.dataset.vnext='1';
-      row.innerHTML = `
-        <div class="dur-chip sel" data-min="30"><span class="dur-min">30 min</span></div>
-        <div class="dur-chip" data-min="60"><span class="dur-min">1 hour</span></div>
-        <div class="dur-chip custom-chip" data-custom="1"><span class="dur-min">Custom</span></div>`;
-      row.querySelectorAll('.dur-chip').forEach(ch=>{
-        ch.addEventListener('click',()=>{
-          if(timerRunning) return;
-          if(ch.dataset.custom){ openVNextCustomDuration(); return; }
-          row.querySelectorAll('.dur-chip').forEach(x=>x.classList.remove('sel')); ch.classList.add('sel');
-          countdownTotalMs=parseInt(ch.dataset.min,10)*60000; renderTimerDigits(); renderRing();
-        });
-      });
-    }
-    const rename=document.getElementById('renamePresetsBtn'); if(rename) rename.style.display='none';
-    const ctl=document.querySelector('.timer-controls');
-    if(ctl && !ctl.classList.contains('timer-controls-vnext')){
-      ctl.classList.add('timer-controls-vnext');
-      const link=document.createElement('button');
-      link.id='linkedTargetBtn'; link.className='link-target-btn'; link.type='button'; link.title='Link today\'s daily target'; link.textContent='📌';
-      ctl.insertBefore(link, document.getElementById('startBtn'));
-      link.addEventListener('click',openVNextLinkTarget);
-    }
-    const focus=document.getElementById('focusToggleBtn');
-    if(focus && !focus.classList.contains('focus-pill-vnext')){
-      focus.classList.add('focus-pill-vnext'); focus.textContent='🧘 Focus'; focus.title='Enter focus mode';
-      timerRing.appendChild(focus);
-    }
-    // add an empty compact label below linked button
-    if(!document.getElementById('linkedTargetLabel')){
-      const label=document.createElement('div'); label.id='linkedTargetLabel'; label.className='vnext-link-label'; timerRing.appendChild(label);
-    }
-  }
-
-  function syncNowControls(){
-    const wrap=document.getElementById('timerControlsWrap');
-    if(!wrap) return;
-    const committed=timerRunning || elapsedMs>0;
-    wrap.classList.toggle('vnext-committed',committed);
-    const link=document.getElementById('linkedTargetBtn');
-    const focus=document.getElementById('focusToggleBtn');
-    const focusOn=document.body.classList.contains('focus-active');
-    if(link){ link.classList.toggle('active',committed && !focusOn); link.classList.toggle('linked',!!window.__vnextLinkedTaskId); link.style.display=(committed&&!focusOn)?'flex':'none'; }
-    if(focus){ focus.classList.toggle('visible',committed&&!focusOn); }
-    const label=document.getElementById('linkedTargetLabel');
-    if(label){ label.textContent=window.__vnextLinkedTaskLabel ? `🔗 ${window.__vnextLinkedTaskLabel}` : ''; }
-  }
-
-  async function openVNextCustomDuration(){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Custom focus time</h3>
-      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:10px;">Scroll hours and minutes</div>
-      <div class="custom-time-grid"><div><div class="modal-subhead">Hour</div><div id="v-h"></div></div><div><div class="modal-subhead">Minute</div><div id="v-m"></div></div></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="v-cancel">Cancel</button><button class="btn btn-primary" id="v-save">Use time</button></div></div>`;
-    document.body.appendChild(backdrop);
-    const h=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
-    const m=[0,5,10,15,20,25,30,35,40,45,50,55].map(i=>String(i).padStart(2,'0'));
-    const curH=Math.floor(V.customMinutes/60), curM=V.customMinutes%60, mi=Math.min(11,Math.round(curM/5));
-    const wh=createTimeWheel(backdrop.querySelector('#v-h'),String(curH).padStart(2,'0')+':00');
-    // createTimeWheel is HH:MM oriented, use a lightweight local wheel for minutes.
-    function simpleWheel(el,items,idx){
-      el.innerHTML=`<div class="wheel-picker">${items.map(v=>`<div class="opt">${v}</div>`).join('')}</div>`;
-      const w=el.firstElementChild; const paint=()=>{const i=Math.max(0,Math.min(items.length-1,Math.round(w.scrollTop/40)));w.querySelectorAll('.opt').forEach((o,j)=>o.classList.toggle('center',j===i));return i;};
-      w.addEventListener('scroll',()=>requestAnimationFrame(paint)); w.scrollTop=idx*40; paint(); return {get value(){return items[paint()];}};
-    }
-    const wh2=simpleWheel(backdrop.querySelector('#v-h'),h,curH);
-    const wm=simpleWheel(backdrop.querySelector('#v-m'),m,mi);
-    function close(){backdrop.remove();}
-    backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-cancel').onclick=close;
-    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#v-save').onclick=()=>{ const hh=parseInt(wh2.value,10)||0; const mm=parseInt(wm.value,10)||0; if(hh===0&&mm===0){alert('Choose more than 0 minutes.');return;} V.customMinutes=hh*60+mm; countdownTotalMs=V.customMinutes*60000; backdrop.remove(); applyModeUI('countdown'); document.querySelectorAll('#countdownLenChips .dur-chip').forEach(x=>x.classList.remove('sel')); const c=document.querySelector('#countdownLenChips .custom-chip'); if(c)c.classList.add('sel'); renderTimerDigits(); };
-  }
-
-  function todayTaskOptions(){
-    const d=new Date(); const dateKey=fmtDate(d); const blocks=blocksForDateIn(state,d); return blocks.map(b=>({id:b.id,label:b.label||subjectNameIn(b.subject,state),duration:b.duration||30,subject:b.subject,dateKey}));
-  }
-
-  function openVNextLinkTarget(){
-    const tasks=todayTaskOptions();
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link daily target</h3>
-      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">The task duration becomes the focus duration automatically.</div>
-      <div id="v-task-list">${tasks.length?tasks.map(t=>`<button class="btn btn-ghost v-task-pick" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;"><b>${escapeHtml(t.label)}</b><br><span style="font-size:10px;color:var(--chalk-faint)">${t.duration} min · ${escapeHtml(subjectNameIn(t.subject,state))}</span></button>`).join(''):'<div style="font-size:12px;color:var(--chalk-faint);padding:10px 0;">No daily tasks for today.</div>'}</div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="v-unlink">Unlink</button><button class="btn btn-ghost" id="v-close">Close</button></div></div>`;
-    document.body.appendChild(backdrop);
-    function close(){backdrop.remove();} backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-close').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelectorAll('.v-task-pick').forEach(btn=>btn.addEventListener('click',()=>{
-      const t=tasks.find(x=>x.id===btn.dataset.id); if(!t)return;
-      window.__vnextLinkedTaskId=t.id; window.__vnextLinkedTaskLabel=t.label; window.__vnextLinkedTaskDuration=t.duration; window.__vnextLinkedTaskDate=t.dateKey;
-      countdownTotalMs=t.duration*60000;
-      if(timerRunning && timerMode==='countdown' && elapsedMs>=countdownTotalMs){ elapsedMs=countdownTotalMs; finishSession(true); }
-      else { renderTimerDigits(); syncNowControls(); }
-      close();
-    }));
-    backdrop.querySelector('#v-unlink').onclick=()=>{window.__vnextLinkedTaskId=null;window.__vnextLinkedTaskLabel='';window.__vnextLinkedTaskDuration=null;window.__vnextLinkedTaskDate=null;syncNowControls();close();};
-  }
-
-  // Track linked-session metadata around the existing finishSession implementation.
-  const __vnextOriginalFinish = finishSession;
-  finishSession = function(completed, reason){
-    const beforeKey=fmtDate(new Date(sessionStartClock||Date.now()));
-    const beforeLen=((state.sessions[beforeKey]||[]).length);
-    __vnextOriginalFinish(completed, reason);
-    const list=state.sessions[beforeKey]||[];
-    if(window.__vnextLinkedTaskId && list.length>beforeLen){
-      const s=list[list.length-1];
-      s.linkedTaskId=window.__vnextLinkedTaskId;
-      s.linkedTaskDate=window.__vnextLinkedTaskDate||beforeKey;
-      s.linkedTaskDuration=window.__vnextLinkedTaskDuration||null;
-      saveState();
-    }
-    window.__vnextLinkedTaskId=null; window.__vnextLinkedTaskLabel=''; window.__vnextLinkedTaskDuration=null; window.__vnextLinkedTaskDate=null; syncNowControls();
-  };
-
-  // Override the edit-session modal so linking is available there.
-  openEditSessionModal = function(session,dateKey){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    const tasks=blocksForDateIn(state,new Date(dateKey+'T12:00:00'));
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit session</h3>
-      <div class="field-row"><label>Subject</label><select id="es-subject"></select></div>
-      <div class="field-row"><label>Duration (minutes)</label><input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}"></div>
-      <div class="field-row"><label>Linked daily target</label><select id="es-link"><option value="">— none —</option>${tasks.map(t=>`<option value="${t.id}">${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}</select></div>
-      <div class="field-row"><label>Note</label><textarea id="es-note" rows="2" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;">${escapeHtml(session.note||'')}</textarea></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button><button class="btn btn-primary" id="es-save">Save</button></div></div>`;
-    document.body.appendChild(backdrop); renderSubjectOptions(backdrop.querySelector('#es-subject'),session.subject); const link=backdrop.querySelector('#es-link'); if(session.linkedTaskId) link.value=session.linkedTaskId;
-    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#es-save').onclick=()=>{ const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(!s)return; s.subject=backdrop.querySelector('#es-subject').value; s.duration=Math.max(1,parseFloat(backdrop.querySelector('#es-duration').value)||1); s.note=backdrop.querySelector('#es-note').value.trim(); s.linkedTaskId=link.value||null; s.linkedTaskDate=link.value?dateKey:null; s.linkedTaskDuration=link.value?(tasks.find(t=>t.id===link.value)?.duration||null):null; saveState(); renderSessions(); renderTaskList(); close(); };
-    backdrop.querySelector('#es-delete').onclick=()=>{state.sessions[dateKey]=(state.sessions[dateKey]||[]).filter(s=>s.id!==session.id);saveState();renderSessions();renderTaskList();close();};
-  };
-
-  function linkedProgressFor(data,dateKey,taskId){
-    return ((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
-  }
-
-  function taskActionMenu(anchor, task, source, dateKey){
-    document.querySelectorAll('.task-menu-vnext').forEach(x=>x.remove());
-    const menu=document.createElement('div'); menu.className='task-menu-vnext';
-    menu.innerHTML=`<button data-act="edit">✏️ Edit</button><button data-act="comment">💬 Comment</button><button data-act="delete" style="color:var(--c1);">🗑 Delete</button>`;
-    document.body.appendChild(menu); const r=anchor.getBoundingClientRect(); menu.style.left=Math.min(window.innerWidth-140,Math.max(8,r.right-138))+'px'; menu.style.top=Math.min(window.innerHeight-150,r.bottom+6)+'px';
-    const close=()=>menu.remove(); menu.querySelector('[data-act=edit]').onclick=()=>{close(); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===task.id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===task.id); if(block) openAddModal(source==='template'?'template':'extra',block,dateKey);};
-    menu.querySelector('[data-act=comment]').onclick=()=>{close(); openCommentsModal(commentsIdFor(task.id,me.id),task.label||subjectNameIn(task.subject,state));};
-    menu.querySelector('[data-act=delete]').onclick=()=>{close(); if(!confirm('Delete this task?'))return; if(source==='template') state.weeklyTemplate=state.weeklyTemplate.filter(b=>b.id!==task.id); else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(b=>b.id!==task.id); saveState(); renderTaskList(); renderWeeklyGoalsList();};
-    setTimeout(()=>document.addEventListener('click',close,{once:true,capture:true}),0);
-  }
-
-  renderTaskList = async function(){
-    const el=document.getElementById('taskList'); if(!el||!me)return;
-    const dateKey=fmtDate(selectedDate); const data=activeData(); const editable=isViewingSelf();
-    if(!editable) await fetchFriendBoard(viewingId);
-    const liveData=editable?state:(friendCache[viewingId]||data);
-    const blocks=blocksForDateIn(liveData,selectedDate);
-    const name=editable?'My tasks':((usersList.find(u=>u.id===viewingId)||{}).name||'Their')+"'s tasks";
-    if(!blocks.length){el.innerHTML=`<h3 class="section-title">${escapeHtml(name)}</h3><div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${editable?'tap + to add a task for this day':''}</div>`;return;}
-    let html=`<h3 class="section-title">${escapeHtml(name)}</h3>`;
-    blocks.forEach(b=>{
-      const compKey=dateKey+'|'+b.id; let status=(liveData.completion||{})[compKey]; const logged=linkedProgressFor(liveData,dateKey,b.id); const dur=b.duration||30; const pct=status==='done'?100:Math.min(100,Math.round((logged/dur)*100));
-      if(editable && pct>=100 && status!=='done'){ state.completion[compKey]='done'; status='done'; }
-      html+=`<div class="task-progress-card ${status==='done'?'done':''}" style="--task-pct:${pct}%;"><div class="task-progress-inner">
-        <div class="time">${timeColHtml(b.start,dur)}</div><div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':''}</div>
-        <div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,liveData))}</div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,liveData)}"></span>${escapeHtml(subjectNameIn(b.subject,liveData))} · ${dur} min</div><div class="progress-note">${Math.min(dur,Math.round(logged*10)/10)} / ${dur} min · ${pct}%${b.linkedGoalId?` · 🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,liveData))}`:''}</div></div>
-        ${editable?`<button class="task-more" data-task-id="${b.id}" data-source="${b.source}" title="More">⋯</button>`:''}
-      </div></div>`;
-    });
-    el.innerHTML=html;
-    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{const k=c.dataset.key;state.completion[k]=nextStatus(state.completion[k]);saveState();renderTaskList();renderWeeklyGoalsList();}));
-    el.querySelectorAll('.task-more').forEach(btn=>{const task=blocks.find(b=>b.id===btn.dataset.taskId);btn.addEventListener('click',e=>{e.stopPropagation();taskActionMenu(btn,task,btn.dataset.source,dateKey);});});
-    if(editable) saveState();
-  };
-
-  // Weekly start-day preference and improved range label.
-  startOfWeek = function(date,offsetWeeks){
-    const d=new Date(date); d.setHours(0,0,0,0); const startDay=Number.isInteger(state.weekStartDay)?state.weekStartDay:0; const delta=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-delta+(offsetWeeks||0)*7); return d;
-  };
-
-  function ensureWeekNavVNext(){
-    const nav=document.getElementById('weekNav'); if(!nav||nav.dataset.vnext)return; nav.dataset.vnext='1';
-    const arrowPrev=document.getElementById('weekPrev'), arrowNext=document.getElementById('weekNext'), label=document.getElementById('weekNavLabel');
-    nav.classList.add('week-nav-vnext');
-    const wrap=document.createElement('div'); wrap.className='week-center-wrap'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.flex='1'; wrap.style.gap='6px';
-    const center=document.createElement('div'); center.className='week-center'; center.id='weekVCenter';
-    const edit=document.createElement('button'); edit.className='week-start-btn'; edit.id='weekStartEdit'; edit.textContent='✎'; edit.title='Choose week start';
-    label.replaceWith(wrap); wrap.appendChild(center); wrap.appendChild(edit);
-    edit.onclick=openWeekStartPicker;
-  }
-  function openWeekStartPicker(){
-    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">Choose which day starts your weekly targets.</div><div class="day-toggle-row">${DAY_NAMES.map((n,i)=>`<button class="day-toggle" data-d="${i}">${n}</button>`).join('')}</div><div class="modal-actions"><button class="btn btn-ghost" id="wsc">Cancel</button><button class="btn btn-primary" id="wss">Save</button></div></div>`;document.body.appendChild(backdrop);backdrop.querySelectorAll('.day-toggle').forEach(b=>{if(Number(b.dataset.d)===(Number.isInteger(state.weekStartDay)?state.weekStartDay:0))b.classList.add('sel');b.onclick=()=>{backdrop.querySelectorAll('.day-toggle').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};});const close=()=>backdrop.remove();backdrop.querySelector('.close-x').onclick=close;backdrop.querySelector('#wsc').onclick=close;backdrop.querySelector('#wss').onclick=()=>{state.weekStartDay=Number(backdrop.querySelector('.day-toggle.sel')?.dataset.d||0);saveState();weekOffset=0;renderWeeklyGoalsList();close();};
-  }
-
-  const __vnextOriginalWeeklyGoals=renderWeeklyGoalsList;
-  renderWeeklyGoalsList=function(){
-    ensureWeekNavVNext(); __vnextOriginalWeeklyGoals();
-    const start=startOfWeek(new Date(),weekOffset), end=new Date(start); end.setDate(end.getDate()+6); const center=document.getElementById('weekVCenter');
-    if(center){ const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; center.innerHTML=`<span style="font-size:10px;color:var(--chalk-faint)">${M[start.getMonth()]} ${start.getDate()}</span><div style="font-family:'Kalam';font-size:15px;color:var(--chalk)">${weekOffset===0?'This week':'Week'}</div><span style="font-size:10px;color:var(--chalk-faint)">${M[end.getMonth()]} ${end.getDate()}</span>`; }
-  };
-
-  function updateHeaderTitle(){ const t=document.getElementById('headerTitle'), s=document.getElementById('headerSub'); if(t&&currentScreen==='timer'){t.textContent='Study Board';} if(s&&currentScreen==='timer'){s.textContent='stay on the clock';} }
-
-  const __vnextOriginalRender=render;
-  render=function(){
-    setupNowMarkup(); syncProfileAndGroupVisibility(); __vnextOriginalRender(); setupNowMarkup(); syncNowControls(); updateHeaderTitle();
-  };
-
-  // Make focus button react to focus-state changes.
-  const __vnextFocusClassObserver=new MutationObserver(()=>syncNowControls());
-  __vnextFocusClassObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
-
-  // Keep Daily progress fresh while a linked session is running.
-  setInterval(()=>{ if(timerRunning && window.__vnextLinkedTaskId && currentScreen==='today') renderTaskList(); },15000);
-
-
-  // ---------- vNext LIVE-only group menu ----------
-  const __vnextOriginalRenderGroupBar = renderGroupBar;
-  renderGroupBar = function(){
-    __vnextOriginalRenderGroupBar();
-    const bar=document.querySelector('#screen-live .group-bar');
-    const main=document.getElementById('groupBar');
-    if(!bar||!main||!activeGroupData)return;
-    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
-    const label=main.querySelector('#groupBarLabel');
-    if(label && hidden) label.innerHTML=`<span style="font-weight:700">${escapeHtml(me?.name||'You')}</span><span class="group-vnext-actions-note"> · group hidden</span>`;
-    const snap=document.getElementById('snapRow');
-    if(snap && currentScreen==='live') snap.style.display=hidden?'none':'';
-  };
-
-  function vNextGroupModal(content, mountId='vgrp-modal'){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal" id="${mountId}">${content}</div>`; document.body.appendChild(backdrop);
-    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x')?.addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    return {backdrop,body:backdrop.querySelector('#'+mountId),close};
-  }
-
-  const __vnextOriginalGroupsModal = openGroupsModal;
-  function openVNextGroupMenu(){
-    if(!activeGroupData){ __vnextOriginalGroupsModal(); return; }
-    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>${escapeHtml(activeGroupData.name)}</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">${Object.keys(activeGroupData.members||{}).length} members</div>
-      <div class="group-vnext-actions"><button class="btn btn-ghost" id="vgrp-edit">✏️ Edit</button><button class="btn btn-ghost" id="vgrp-share">↗ Share</button><button class="btn btn-ghost" id="vgrp-hide">${hidden?'◉ Show':'◌ Hide'} people</button><button class="btn btn-primary" id="vgrp-switch">⇄ Switch / Create</button></div>`);
-    ui.body.querySelector('#vgrp-edit').onclick=()=>{ui.close();openVNextGroupEdit(activeGroupId);};
-    ui.body.querySelector('#vgrp-share').onclick=()=>{ui.close();openVNextGroupShare(activeGroupId);};
-    ui.body.querySelector('#vgrp-hide').onclick=()=>{localStorage.setItem('sb-live-group-hidden-'+activeGroupId,hidden?'0':'1');renderGroupBar();renderSnapRow();};
-    ui.body.querySelector('#vgrp-switch').onclick=()=>{ui.close();openGroupsModal();};
-  }
-
-  async function fetchGroupFresh(groupId){try{const snap=await getDoc(doc(db,'groups',groupId));return snap.exists()?snap.data():null;}catch(e){return null;}}
-  async function openVNextGroupEdit(groupId){
-    const g=await fetchGroupFresh(groupId); if(!g)return;
-    const owner=g.ownerId===me.id; const d=g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):'';
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Edit group</h3>
-      <div class="field-row"><label>Group name</label><input id="ve-name" value="${escapeHtml(g.name||'')}"></div>
-      <div class="field-row"><label>Daily target (hours)</label><input id="ve-daily" type="number" min="0" step="0.5" value="${g.dailyGoalHours||0}"></div>
-      <div class="field-row"><label>Weekly target (hours)</label><input id="ve-weekly" type="number" min="0" step="0.5" value="${g.weeklyGoalHours||0}"></div>
-      <div class="field-row"><label>Deadline</label><input id="ve-deadline" type="date" value="${d}"></div>
-      <h4 style="font-family:'Kalam';font-weight:400;margin:14px 0 6px">Members</h4><div id="ve-members"></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="ve-cancel">Cancel</button>${owner?'<button class="btn btn-danger" id="ve-delete">Delete group</button>':''}<button class="btn btn-primary" id="ve-save">Save</button></div>`);
-    const members=ui.body.querySelector('#ve-members'); members.innerHTML=Object.keys(g.members||{}).map(uid=>{const pp=profileFor(uid);return `<div class="group-member-row-vnext"><span>${escapeHtml(pp.name)}${uid===g.ownerId?' 👑':''}</span>${owner&&uid!==me.id?`<button class="task-del" data-rm="${uid}">×</button>`:''}</div>`}).join('');
-    members.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{await removeMemberFromGroup(groupId,b.dataset.rm);openVNextGroupEdit(groupId);ui.close();});
-    ui.body.querySelector('#ve-cancel').onclick=ui.close;
-    ui.body.querySelector('#ve-save').onclick=async()=>{const name=ui.body.querySelector('#ve-name').value.trim();if(!name)return alert('Give the group a name.');const ds=ui.body.querySelector('#ve-deadline').value;const deadlineAt=ds?new Date(ds+'T23:59:59').getTime():null;await setDoc(doc(db,'groups',groupId),{name,dailyGoalHours:parseFloat(ui.body.querySelector('#ve-daily').value)||0,weeklyGoalHours:parseFloat(ui.body.querySelector('#ve-weekly').value)||0,deadlineAt},{merge:true});activeGroupData=await fetchGroupFresh(groupId);renderGroupBar();ui.close();};
-    ui.body.querySelector('#ve-delete')?.addEventListener('click',async()=>{if(!confirm('Delete this group? This cannot be undone.'))return;await deleteDoc(doc(db,'groups',groupId));myGroupIds=myGroupIds.filter(x=>x!==groupId);activeGroupId=myGroupIds[0]||null;activeGroupData=activeGroupId?await fetchGroupFresh(activeGroupId):null;await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});ui.close();render();});
-  }
-
-  async function openVNextGroupShare(groupId){
-    const g=await fetchGroupFresh(groupId);if(!g)return;const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;const qr='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase">Access code</div><div class="code">${g.inviteCode}</div><img src="${qr}" alt="QR code" style="max-width:180px;border-radius:12px;background:white;padding:8px"><button class="btn btn-primary" id="vs-copy" style="width:100%;margin-top:8px">Copy invite link</button></div>`);
-    ui.body.querySelector('#vs-copy').onclick=async()=>{try{await navigator.clipboard.writeText(inviteUrl);}catch(e){}const b=ui.body.querySelector('#vs-copy');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy invite link',1000);};
-  }
-
-  openGroupsModal = function(){ openVNextGroupMenu(); };
-
-  // Initial state: preserve 30-minute default and hide group row except in Live.
-  if(!state.weekStartDay && state.weekStartDay!==0) state.weekStartDay=0;
-  if(typeof state.focusPresetNames==='undefined') state.focusPresetNames=[];
-  applyModeUI(timerMode); countdownTotalMs=30*60000; V.customMinutes=30; renderTimerDigits();
-  setTimeout(()=>{setupNowMarkup();syncProfileAndGroupVisibility();syncNowControls();renderWeeklyGoalsList();},0);
 })();
 </script>
 </body>
