@@ -257,10 +257,12 @@ window.storage = storage;
       try{
         snap = await getDocFromServer(doc(db, 'boards', me.id));
       }catch(e){
-        // FIX: Prevent infinite loop if Firebase rules block access instead of network failure
+        // PREVENTS INFINITE LOOP IF PERMISSION DENIED BY FIREBASE RULES
         if (e.code === 'permission-denied' || String(e).includes('permission')) {
             hideLoadBlocker();
             setAuthError("Database access denied. Please try logging out and back in.");
+            await signOut(auth);
+            showAuth();
             return; 
         }
         attempts++;
@@ -297,6 +299,7 @@ window.storage = storage;
     setSyncStatus('ok');
     checkJoinLinkParam();
   }
+  
   function checkJoinLinkParam(){
     const params = new URLSearchParams(location.search);
     const code = params.get('join');
@@ -394,6 +397,7 @@ window.storage = storage;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
   const authError = document.getElementById('authError');
+  
   function showAuth(){
     authScreen.style.display = 'flex';
     appRoot.style.display = 'none';
@@ -414,12 +418,13 @@ window.storage = storage;
     setAuthError('');
   });
 
-  document.getElementById('googleAuthBtn').addEventListener('click', async ()=>{
+  // GOOGLE SIGN IN LOGIC
+  document.getElementById('googleAuthBtn').addEventListener('click', async (e)=>{
+    e.preventDefault(); // PREVENTS PAGE RELOAD
     setAuthError('');
     document.getElementById('googleAuthBtn').disabled = true;
     try {
       const provider = new GoogleAuthProvider();
-      // Using redirect instead of popup for stable iPad/mobile compatibility
       await signInWithRedirect(auth, provider);
     } catch(e) {
       setAuthError(e.message || 'Google sign-in failed.');
@@ -427,18 +432,44 @@ window.storage = storage;
     }
   });
 
-  document.getElementById('authSubmit').addEventListener('click', async ()=>{
+  // SAFE GOOGLE REDIRECT HANDLER (Contained within scope)
+  getRedirectResult(auth).then(async (result) => {
+    if (result && result.user && !booted) {
+      booted = true;
+      window.__meId = result.user.uid;
+      try {
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { 
+          id: result.user.uid, 
+          name: result.user.displayName || 'Student', 
+          color: COLORS[0], 
+          photo: result.user.photoURL || null 
+        };
+      } catch(err) {
+        me = { id: result.user.uid, name: result.user.displayName || 'Student', color: COLORS[0], photo: result.user.photoURL || null };
+      }
+      showApp();
+      await loadState();
+    }
+  }).catch((e) => {
+    if (e && e.code !== 'auth/redirect-cancelled-by-user') {
+      setAuthError(e.message || 'Google sign-in redirect failed.');
+    }
+  });
+
+  // EMAIL & PASSWORD LOGIN LOGIC
+  document.getElementById('authSubmit').addEventListener('click', async (e)=>{
+    e.preventDefault(); // PREVENTS INSTANT PAGE RELOAD
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     const name = document.getElementById('authName').value.trim();
     setAuthError('');
+    
     if(!email || !password){ setAuthError('Enter an email and password.'); return; }
     if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
-    
-    // FIX: Lock initialization so `onAuthStateChanged` doesn't collide with this function
-    booted = true; 
+    booted = true; // PREVENTS DOUBLE LOADING RACE CONDITION
 
     try{
       if(authMode==='signup'){
@@ -458,7 +489,7 @@ window.storage = storage;
         await loadState();
       }
     }catch (e) {
-      booted = false; // Free the lock if login failed
+      booted = false; // RELEASES THE LOCK IF LOGIN FAILS
       let readableMessage = "An error occurred during authentication.";
       if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
         readableMessage = "Incorrect password or email address.";
@@ -492,8 +523,7 @@ window.storage = storage;
     viewingId = null;
     try{
       await signOut(auth);
-      // FIX: Force a hard reload to clear any buggy local variables completely on logout
-      window.location.reload(); 
+      window.location.reload(); // FORCES A CLEAN RESTART AFTER LOGOUT
     }catch(e){
       alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
     }
@@ -1222,6 +1252,7 @@ window.storage = storage;
       showAuth();
     }
   });
+  
   async function loadUsersList(){
     try{
       const res = await window.storage.get(USERS_KEY, true);
@@ -2225,10 +2256,3 @@ window.storage = storage;
   }
 
 })();
-
-// Catch any Google Redirect errors passively so they don't break the app
-getRedirectResult(auth).catch((e)=>{
-   if (e && e.code !== 'auth/redirect-cancelled-by-user') {
-      setAuthError(e.message || 'Google sign-in failed.');
-   }
-});
