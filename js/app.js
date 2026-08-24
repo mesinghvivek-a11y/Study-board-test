@@ -461,9 +461,10 @@ window.storage = storage;
         showApp();
         await loadState();
       }
-    }catch(e){
-      setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Something went wrong.');
-    }
+    }catch (e) {
+  setAuthError(e.message || 'Something went wrong.');
+}
+    
     document.getElementById('authSubmit').disabled = false;
   });
 
