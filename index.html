@@ -80,7 +80,7 @@
     </div>
   </header>
 
-  <!-- Thin pill button sitting ABOVE the people row -->
+  <!-- RE-STYLED: Thin pill button sitting ABOVE the people row -->
   <div class="shared-people-wrap" id="sharedPeopleWrap">
     <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Toggle people">
       <span class="collapse-icon">▾</span>
@@ -112,9 +112,10 @@
         </div>
         <div id="customFocusWheel" style="display:none; margin-top:10px;"></div>
 
-        <!-- Focus button in the corner, distinct from the ring -->
+        <!-- RE-STYLED: Focus button in the corner, distinct from the ring -->
         <div class="timer-ring-wrap">
-          <button type="button" class="focus-toggle-btn timer-frame-focus-btn" id="focusToggleBtn" title="Enter focus mode">🧘</button>
+          <button type="button" class="timer-frame-focus-btn" id="focusToggleBtn" title="Enter focus mode">🧘</button>
+          
           <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
@@ -133,7 +134,7 @@
           </div>
         </div>
 
-        <!-- Pin button directly between Start and Reset -->
+        <!-- RE-STYLED: Pin button directly between Start and Reset -->
         <div class="timer-controls">
           <button class="btn btn-ghost" id="resetBtn">Reset</button>
           <button type="button" class="pin-btn" id="timerTaskPin" title="Link this timer to a daily task">📌</button>
@@ -156,7 +157,7 @@
       <div id="taskList"></div>
     </section>
 
-    <!-- FULLY RESTORED: WEEK SCREEN -->
+    <!-- RESTORED: WEEK SCREEN (Fully functional, ready for Plan migration later) -->
     <section class="screen" id="screen-week">
       <div class="week-nav" id="weekNav">
         <button class="week-nav-arrow" id="weekPrev">‹</button>
@@ -168,7 +169,6 @@
       </div>
       <div id="weeklyGoalsList"></div>
     </section>
-
 
     <!-- LIVE SCREEN -->
     <section class="screen" id="screen-live">
@@ -248,7 +248,6 @@
   </nav>
 </div>
 
-<!-- Link to your safely separated V6 JS file -->
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
