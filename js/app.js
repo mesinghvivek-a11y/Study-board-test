@@ -5,7 +5,7 @@ import {
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile,
-  GoogleAuthProvider, signInWithPopup
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
   getMessaging, getToken, onMessage, isSupported as messagingIsSupported
@@ -27,6 +27,25 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 const rtdb = getDatabase(fbApp);
+
+// ---------- Handle Google Redirect Result on Load (iPad / Mobile Fix) ----------
+getRedirectResult(auth).then(async (result) => {
+  if (result && result.user) {
+    booted = true;
+    window.__meId = result.user.uid;
+    const res = await window.storage.get('study-board-profile', false);
+    me = res && res.value ? JSON.parse(res.value) : { 
+      id: result.user.uid, 
+      name: result.user.displayName || 'Student', 
+      color: COLORS[0],
+      photo: result.user.photoURL || null
+    };
+    showApp();
+    await loadState();
+  }
+}).catch((e) => {
+  setAuthError(e.message || 'Google sign-in redirect failed.');
+});
 
 // ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
@@ -413,24 +432,12 @@ window.storage = storage;
     document.getElementById('googleAuthBtn').disabled = true;
     try {
       const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(auth, provider);
-      booted = true;
-      window.__meId = cred.user.uid;
-      
-      const res = await window.storage.get('study-board-profile', false);
-      me = res && res.value ? JSON.parse(res.value) : { 
-        id: cred.user.uid, 
-        name: cred.user.displayName || 'Student', 
-        color: COLORS[0],
-        photo: cred.user.photoURL || null
-      };
-      
-      showApp();
-      await loadState();
+      // Using redirect instead of popup for stable iPad/mobile compatibility
+      await signInWithRedirect(auth, provider);
     } catch(e) {
       setAuthError(e.message || 'Google sign-in failed.');
+      document.getElementById('googleAuthBtn').disabled = false;
     }
-    document.getElementById('googleAuthBtn').disabled = false;
   });
 
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
