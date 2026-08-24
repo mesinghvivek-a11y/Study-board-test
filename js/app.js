@@ -28,25 +28,6 @@ const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 const rtdb = getDatabase(fbApp);
 
-// ---------- Handle Google Redirect Result on Load (iPad / Mobile Fix) ----------
-getRedirectResult(auth).then(async (result) => {
-  if (result && result.user) {
-    booted = true;
-    window.__meId = result.user.uid;
-    const res = await window.storage.get('study-board-profile', false);
-    me = res && res.value ? JSON.parse(res.value) : { 
-      id: result.user.uid, 
-      name: result.user.displayName || 'Student', 
-      color: COLORS[0],
-      photo: result.user.photoURL || null
-    };
-    showApp();
-    await loadState();
-  }
-}).catch((e) => {
-  setAuthError(e.message || 'Google sign-in redirect failed.');
-});
-
 // ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
 if('serviceWorker' in navigator){
@@ -276,6 +257,12 @@ window.storage = storage;
       try{
         snap = await getDocFromServer(doc(db, 'boards', me.id));
       }catch(e){
+        // FIX: Prevent infinite loop if Firebase rules block access instead of network failure
+        if (e.code === 'permission-denied' || String(e).includes('permission')) {
+            hideLoadBlocker();
+            setAuthError("Database access denied. Please try logging out and back in.");
+            return; 
+        }
         attempts++;
         showLoadBlocker(attempts===1
           ? "You're offline — waiting to reconnect…"
@@ -449,10 +436,13 @@ window.storage = storage;
     if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
+    
+    // FIX: Lock initialization so `onAuthStateChanged` doesn't collide with this function
+    booted = true; 
+
     try{
       if(authMode==='signup'){
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        booted = true;
         window.__meId = cred.user.uid;
         me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
         await window.storage.set('study-board-profile', JSON.stringify(me), false);
@@ -461,7 +451,6 @@ window.storage = storage;
         await loadState();
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password);
-        booted = true;
         window.__meId = cred.user.uid;
         const res = await window.storage.get('study-board-profile', false);
         me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
@@ -469,6 +458,7 @@ window.storage = storage;
         await loadState();
       }
     }catch (e) {
+      booted = false; // Free the lock if login failed
       let readableMessage = "An error occurred during authentication.";
       if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
         readableMessage = "Incorrect password or email address.";
@@ -502,6 +492,8 @@ window.storage = storage;
     viewingId = null;
     try{
       await signOut(auth);
+      // FIX: Force a hard reload to clear any buggy local variables completely on logout
+      window.location.reload(); 
     }catch(e){
       alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
     }
@@ -1219,8 +1211,8 @@ window.storage = storage;
       window.__meId = user.uid;
       try{
         const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: 'Student', color: COLORS[0] };
-      }catch(e){ me = { id: user.uid, name: 'Student', color: COLORS[0] }; }
+        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
+      }catch(e){ me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null }; }
       showApp();
       await loadState();
     } else if(!user){
@@ -2233,3 +2225,10 @@ window.storage = storage;
   }
 
 })();
+
+// Catch any Google Redirect errors passively so they don't break the app
+getRedirectResult(auth).catch((e)=>{
+   if (e && e.code !== 'auth/redirect-cancelled-by-user') {
+      setAuthError(e.message || 'Google sign-in failed.');
+   }
+});
