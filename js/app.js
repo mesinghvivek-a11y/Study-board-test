@@ -15,12 +15,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAiX0OPqh8dvHaDaMcjJznTNp7XE1iuPE4",
-  authDomain: "study-board-6c9d0.firebaseapp.com",
-  projectId: "study-board-6c9d0",
-  storageBucket: "study-board-6c9d0.firebasestorage.app",
-  messagingSenderId: "706066762938",
-  appId: "1:706066762938:web:6e0cde4838353927b74683"
+  apiKey: "AIzaSyDj_aqkiOI3g8ti9_jkqLl_6FOu_HgphZQ",
+  authDomain: "studyboardpro.firebaseapp.com",
+  projectId: "studyboardpro",
+  storageBucket: "studyboardpro.firebasestorage.app",
+  messagingSenderId: "487214631768",
+  appId: "1:706066762938:web:ee9273681379f7d04cb32d",
+  measurementId: "G-SVK750HR2D"
 };
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
