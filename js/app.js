@@ -2185,5 +2185,34 @@ window.storage = storage;
       loadMoreHistoryDays();
     }
   });
+  async function setLiveStatus(patch){
+    if(!me) return;
+    const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
+    liveCache[me.id] = merged;
+    renderPeopleRow(); renderSnapRow();
+    updateFriendTimerCard();
+    try{
+      await set(ref(rtdb, 'liveStatus/' + me.id), merged);
+    }catch(e){}
+  }
+
+  async function getLiveStatus(uid){
+    try{
+      const snap = await get(ref(rtdb, 'liveStatus/' + uid));
+      return snap.exists() ? snap.val() : null;
+    }catch(e){ return null; }
+  }
+
+  let selfLiveUnsub = null;
+  function subscribeSelfLiveStatus(){
+    if(selfLiveUnsub) selfLiveUnsub();
+    selfLiveUnsub = onValue(ref(rtdb, 'liveStatus/' + me.id), (snap)=>{
+      const st = snap.exists() ? snap.val() : null;
+      liveCache[me.id] = st;
+      reconcileLocalTimerFromRemote(st);
+      renderPeopleRow(); renderSnapRow();
+      updateFriendTimerCard();
+    }, (err)=>{});
+  }
 
 })();
