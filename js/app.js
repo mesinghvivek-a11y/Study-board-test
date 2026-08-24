@@ -20,7 +20,7 @@ const firebaseConfig = {
   projectId: "studyboardpro",
   storageBucket: "studyboardpro.firebasestorage.app",
   messagingSenderId: "487214631768",
-  appId: "1:706066762938:web:ee9273681379f7d04cb32d",
+  appId: "1:487214631768:web:ee9273681379f7d04cb32d",
   measurementId: "G-SVK750HR2D"
 };
 const fbApp = initializeApp(firebaseConfig);
