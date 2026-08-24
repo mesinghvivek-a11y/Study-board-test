@@ -971,12 +971,19 @@
 
   /* ---------- v6 NOW / LIVE layout ---------- */
   .group-bar{ display:none !important; }
-  .shared-people-wrap{ display:flex; align-items:center; gap:6px; margin:0 16px 12px; position:relative; z-index:6; }
-  .shared-people-row{ flex:1; min-width:0; padding:0 0 2px; }
-  .people-collapse-btn{ flex:0 0 auto; width:28px; height:46px; border-radius:12px; background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint); cursor:pointer; font-size:18px; line-height:1; }
-  .people-collapse-btn:active{ background:var(--accent-dim); color:var(--accent); }
+  .shared-people-wrap{ display:flex; flex-direction:column; margin:0 16px 6px; position:relative; z-index:6; }
+  .shared-people-row{ order:2; padding:0 0 8px; }
+  .people-collapse-btn{
+    order:1; flex:0 0 auto; width:100%; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+    background:none; border:none; padding:7px 0; margin:0;
+    color:var(--chalk-faint); cursor:pointer; font-size:12px; line-height:1;
+  }
+  .people-collapse-btn:active{ color:var(--accent); }
+  .people-collapse-btn::before{ content:'▾'; }
+  .shared-people-wrap:not(.collapsed) .people-collapse-btn::before{ content:'▴'; }
   .shared-people-wrap.collapsed .shared-people-row{ display:none; }
-  .shared-people-wrap.collapsed .people-collapse-btn{ width:30px; margin-left:auto; }
+  .shared-people-wrap.collapsed{ margin-bottom:2px; }
   .live-group-shell{ margin:0 0 14px; }
   .live-group-head{ display:flex; justify-content:flex-start; }
   .live-group-btn{
@@ -1093,7 +1100,7 @@
   <!-- User profile row for NOW / TODAY / WEEK. Group controls stay only on LIVE. -->
   <div class="shared-people-wrap" id="sharedPeopleWrap">
     <div class="people-row shared-people-row" id="peopleRow"></div>
-    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people">‹</button>
+    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people"></button>
   </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
@@ -2725,7 +2732,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(wrap){
       wrap.classList.toggle('collapsed', sharedPeopleCollapsed && currentScreen!=='live');
       const b=document.getElementById('peopleCollapseBtn');
-      if(b) b.textContent = sharedPeopleCollapsed ? '›' : '‹';
+      if(b) b.title = sharedPeopleCollapsed ? 'Show who\'s here' : 'Collapse';
     }
   }
 
