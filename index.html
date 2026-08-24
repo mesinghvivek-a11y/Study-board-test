@@ -158,16 +158,28 @@
 
     <!-- WEEK SCREEN -->
     <section class="screen" id="screen-week">
-      <div class="week-nav" id="weekNav">
-        <button class="week-nav-arrow" id="weekPrev">‹</button>
-        <div class="week-nav-label-wrap"><div class="week-nav-label-row"><div class="week-nav-label" id="weekNavLabel">This week</div><button class="week-nav-pen" id="weekStartPen" title="Choose week start">✎ Start day</button></div><div class="week-nav-range"><span id="weekStartRange">Sun</span><span id="weekEndRange">Sat</span></div></div>
-        <button class="week-nav-arrow" id="weekNext">›</button>
+      <!-- Hidden legacy buttons to prevent JS errors during transition -->
+      <div style="display:none;">
+        <button id="weekPrev"></button>
+        <button id="weekStartPen"></button>
+        <button id="weekNext"></button>
       </div>
+
+      <!-- NEW: Plan Sub-Tabs -->
+      <div class="plan-sub-tabs" id="planSubTabs">
+        <button type="button" class="plan-tab-btn" data-sub="history">History</button>
+        <button type="button" class="plan-tab-btn active" data-sub="ongoing">Ongoing</button>
+        <button type="button" class="plan-tab-btn" data-sub="upcoming">Upcoming</button>
+      </div>
+
       <div class="wk-section-head">
-        <h2>Weekly Targets</h2>
+        <h2 id="planSectionTitle">Ongoing Plans</h2>
       </div>
+      
+      <!-- List container (temporarily holds legacy goals until JS is updated) -->
       <div id="weeklyGoalsList"></div>
     </section>
+
 
     <!-- LIVE SCREEN -->
     <section class="screen" id="screen-live">
@@ -231,7 +243,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
       TODAY
     </button>
-    <button class="tab-btn" data-screen="week">
+    <button class="tab-btn" data-screen="PLAN">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h3M7 17h3M14 13h3M14 17h3"/></svg>
       WEEK
     </button>
