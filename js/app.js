@@ -428,7 +428,7 @@ window.storage = storage;
       showApp();
       await loadState();
     } catch(e) {
-      setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Google sign-in failed.');
+      setAuthError(e.message || 'Google sign-in failed.');
     }
     document.getElementById('googleAuthBtn').disabled = false;
   });
@@ -462,9 +462,18 @@ window.storage = storage;
         await loadState();
       }
     }catch (e) {
-  setAuthError(e.message || 'Something went wrong.');
-}
-    
+      let readableMessage = "An error occurred during authentication.";
+      if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
+        readableMessage = "Incorrect password or email address.";
+      } else if(e.code === 'auth/user-not-found'){
+        readableMessage = "No account found with that email.";
+      } else if(e.code === 'auth/invalid-email'){
+        readableMessage = "Please enter a valid email address.";
+      } else {
+        readableMessage = e.message || "Something went wrong.";
+      }
+      setAuthError(readableMessage);
+    }
     document.getElementById('authSubmit').disabled = false;
   });
 
