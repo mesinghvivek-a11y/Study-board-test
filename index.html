@@ -2872,7 +2872,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     (state.weeklyTemplate||[]).forEach(b=>{
       if(!b.weekStart) return;
       const oldWeek=parseDateKey(b.weekStart);
-      const actual=new Date(oldWeek); actual.setDate(actual.getDate()+Number(b.day||0));
+      const offset=(Number(b.day||0)-oldStart+7)%7;
+      const actual=new Date(oldWeek); actual.setDate(actual.getDate()+offset);
       b.weekStart=weekStartKeyWithStart(actual,newStart);
     });
     (state.weeklyGoals||[]).forEach(g=>{
@@ -3982,8 +3983,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function recurringGroupStatus(data, group, weekStart){
     const dueDays = [...new Set(group.blocks.map(b=>b.day))].sort((a,b)=>a-b);
     const doneDays = [];
+    const startDay = getWeekStartDay();
     dueDays.forEach(dow=>{
-      const d = new Date(weekStart); d.setDate(d.getDate()+dow);
+      const offset = (dow - startDay + 7) % 7;
+      const d = new Date(weekStart); d.setDate(d.getDate()+offset);
       const dateKey = fmtDate(d);
       const blocksThatDay = group.blocks.filter(b=>b.day===dow);
       if(blocksThatDay.some(b => (data.completion||{})[dateKey+'|'+b.id] === 'done')) doneDays.push(dow);
@@ -4612,8 +4615,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(isTemplate){
         if(selectedDays.size===0){ selectedDays.add(selectedDate.getDay()); }
         if(together){
+          const startDay = getWeekStartDay();
           for(const day of selectedDays){
-            const d = new Date(modalWeekStart); d.setDate(d.getDate()+day);
+            const offset = (day - startDay + 7) % 7;
+            const d = new Date(modalWeekStart); d.setDate(d.getDate()+offset);
             const dateKey = fmtDate(d);
             const list = await loadSharedTasks(dateKey);
             list.push({
