@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
@@ -28,6 +29,7 @@ const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 const rtdb = getDatabase(fbApp);
 
+// ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
 if('serviceWorker' in navigator){
   window.addEventListener('load', async ()=>{
@@ -36,17 +38,19 @@ if('serviceWorker' in navigator){
   });
 }
 
+// TODO: paste your Web Push "VAPID key" from
+// Firebase console → Project settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = 'BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs';
 
 async function pushPermissionState(){
   if(!('Notification' in window)) return 'unsupported';
-  return Notification.permission;
+  return Notification.permission; // 'granted' | 'denied' | 'default'
 }
 
 async function enablePushNotifications(){
   if(!('Notification' in window)) return { ok:false, reason:'unsupported' };
   if(!VAPID_KEY || VAPID_KEY==='PASTE_YOUR_VAPID_KEY_HERE'){
-    console.warn('Push notifications are not configured yet.');
+    console.warn('Push notifications are not configured yet: VAPID_KEY is still the placeholder. Get the real key from Firebase Console → Project settings → Cloud Messaging → Web Push certificates, and paste it in.');
     return { ok:false, reason:'not_configured' };
   }
   try{
@@ -57,10 +61,11 @@ async function enablePushNotifications(){
     if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
-    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty' };
+    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
     if(window.__meId){
       await setDoc(doc(db, 'pushTokens', window.__meId), { token, updatedAt: Date.now() }, { merge:true });
     }
+    // Foreground messages (app open) show as a normal system notification too
     onMessage(messaging, (payload)=>{
       const title = payload.notification?.title || 'Study Board';
       const body = payload.notification?.body || '';
@@ -73,6 +78,11 @@ async function enablePushNotifications(){
   }
 }
 
+// ---- thin wrapper matching the old window.storage API, backed by Firestore ----
+// personal(shared=false)  -> boards/{myId}          (one doc per person)
+// shared board mirror     -> boards/{userId}        (same doc, readable by everyone in test mode)
+// shared registry         -> registry/users
+// shared "together" tasks -> sharedTasks/{date}
 const storage = {
   async get(key, shared){
     const ref = keyToRef(key, shared);
@@ -81,6 +91,10 @@ const storage = {
   },
   async set(key, value, shared){
     const ref = keyToRef(key, shared);
+    // merge:true for the main board doc so a write from one device deep-merges
+    // nested fields (dailyExtra/sessions/completion, keyed by date) into Firestore
+    // instead of replacing the whole document — this is what let one device's
+    // save silently erase another device's un-synced changes.
     const opts = (key === 'study-board-data-v1') ? { merge:true } : undefined;
     await setDoc(ref, { value: JSON.parse(value) }, opts);
     return { key, value, shared };
@@ -97,50 +111,40 @@ function keyToRef(key, shared){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-window.storage = storage;
-
+window.storage = storage; // keep the rest of the app's code unchanged
 (function(){
   const COLORS = ['#FF5A5F','#7FB3D5','#8FCB9B','#B8A0D9','#E6A0C4','#E8C468'];
-  const PALETTES = [
-    { id:'cyan',    accent:'#22D3EE' },
-    { id:'violet',  accent:'#8B5CF6' },
-    { id:'rose',    accent:'#FB4570' },
-    { id:'emerald', accent:'#12B981' },
-    { id:'amber',   accent:'#F5A623' }
-  ];
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const STORAGE_KEY = 'study-board-data-v1';
-  const USERS_KEY = 'study-board-users';
+  const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
 
   let state = {
     subjects: [
       {id:'s1', name:'General', color:'#7FB3D5'}
     ],
-    weeklyTemplate: [], 
-    dailyExtra: {},     
-    completion: {},     
-    sessions: {},        
-    goals: { dailyMin: 120, weeklyMin: 600 }, 
-    weeklyGoals: [], 
-    focusPresetNames: ['30 min','1 hour','custom'],
-    weekStartDay: 0,
-    themeMode: 'dark',
-    themePalette: 'cyan'
+    weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label}
+    dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
+    completion: {},     // { 'YYYY-MM-DD|blockId': true }
+    sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
+    goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
+    weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
+    focusPresetNames: ['10 markers','15 marker','recall','study'] // editable labels for the 10/15/30/60min focus chips
   };
 
   let selectedDate = new Date();
   let currentScreen = 'timer';
 
-  let me = null;              
-  let allProfiles = [];       
-  let usersList = [];         
-  let viewingId = null;       
-  let friendCache = {};       
-  let myReads = {};           
+  let me = null;              // {id, name, color}
+  let allProfiles = [];       // global directory: everyone who has ever registered (for name/color/photo lookup)
+  let usersList = [];         // people visible to me RIGHT NOW — derived from the active group's membership
+  let viewingId = null;       // null/undefined = viewing "me"; else a friend's id
+  let friendCache = {};       // id -> board data (read-only snapshots)
+  let myReads = {};           // cid -> last-read timestamp (for comment badges)
 
-  let myGroupIds = [];        
-  let activeGroupId = null;   
-  let activeGroupData = null; 
+  // ---------- groups ----------
+  let myGroupIds = [];        // group ids I belong to
+  let activeGroupId = null;   // which group's roster is currently driving usersList/people-row/snap-row
+  let activeGroupData = null; // full doc of the active group
   let groupUnsub = null;
 
   function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
@@ -151,8 +155,14 @@ window.storage = storage;
     return !!(m && m.hideSchedule);
   }
 
+  // ---------- multi-device sync: never let one device's save erase another's ----------
+  // The board doc can be written from several devices/tabs. Instead of blind
+  // last-write-wins, we keep a live listener on our own board doc and union-merge
+  // whatever comes back into the in-memory `state` (by item id, or by date key for
+  // the date-indexed maps) before we ever write again. Nothing that exists on
+  // either side is dropped by this merge.
   let lastSyncAt = null;
-  let syncStatus = 'stale'; 
+  let syncStatus = 'stale'; // 'stale' | 'syncing' | 'ok' | 'err'
   let applyingRemote = false;
   function mergeArraysById(localArr, remoteArr){
     const byId = new Map();
@@ -173,9 +183,20 @@ window.storage = storage;
     state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals);
     state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions);
+    // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
+    // union it so a tick on one device never un-ticks what another device set.
     state.completion = Object.assign({}, remote.completion||{}, state.completion||{});
     if(remote.goals && (!state.goals || Object.keys(state.goals).length===0)) state.goals = remote.goals;
   }
+  // one-time cleanup: old "weekly template" blocks had no week binding and so
+  // silently repeated forever, every week, until removed by hand. Any block
+  // saved before this fix is missing weekStart — drop those legacy infinite
+  // blocks so they stop reappearing; anything added going forward is scoped
+  // to the single week it was created for (see openAddModal).
+  // IMPORTANT: only persists the cleanup when the caller confirms `state` was just
+  // loaded from the live server (not a possibly-stale offline cache) — saving a
+  // filtered array built from stale data would permanently erase anything a
+  // different device added since this device's cache was last refreshed.
   function migrateLegacyWeeklyTemplate(fromFreshServerData){
     if(!state.weeklyTemplate || !state.weeklyTemplate.length) return;
     const before = state.weeklyTemplate.length;
@@ -219,6 +240,7 @@ window.storage = storage;
     if(!me) return;
     setSyncStatus('syncing');
     try{
+      // manual "sync now" always means the actual server truth, never a cached guess
       const snap = await getDocFromServer(doc(db, 'boards', me.id));
       if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
       await flushStateNow();
@@ -231,6 +253,7 @@ window.storage = storage;
   }
   document.getElementById('syncBtn').addEventListener('click', manualSync);
 
+  // ---------- persistence: my own private working copy ----------
   function showLoadBlocker(msg){
     document.getElementById('loadBlockerMsg').textContent = msg;
     document.getElementById('loadBlocker').style.display = 'flex';
@@ -240,7 +263,7 @@ window.storage = storage;
   }
   function waitForOnline(){
     return new Promise((resolve)=>{
-      if(navigator.onLine){ setTimeout(resolve, 1500); return; }
+      if(navigator.onLine){ setTimeout(resolve, 1500); return; } // brief pause, then retry even if reported online (flaky network)
       const handler = ()=>{ window.removeEventListener('online', handler); resolve(); };
       window.addEventListener('online', handler);
     });
@@ -262,22 +285,12 @@ window.storage = storage;
       try{
         snap = await getDocFromServer(doc(db, 'boards', me.id));
       }catch(e){
-        // PREVENTS INFINITE LOOP IF PERMISSION DENIED BY FIREBASE RULES
-        if (e.code === 'permission-denied' || String(e).includes('permission')) {
-            hideLoadBlocker();
-            setAuthError("Database access denied. Please check your Firebase Firestore rules.");
-            await signOut(auth);
-            showAuth();
-            return; 
-        }
+        // Genuinely offline or unreachable. We deliberately do NOT fall back to a
+        // local cache here (see the note by enableIndexedDbPersistence above) —
+        // proceeding with possibly-stale or empty data and then letting the app
+        // save over it is exactly how data got lost before. Wait for connectivity
+        // and retry instead of guessing.
         attempts++;
-        if (attempts >= 3) {
-            hideLoadBlocker();
-            alert("Failed to connect to Firebase database after 3 attempts.\nError: " + (e.message || e.code));
-            await signOut(auth);
-            showAuth();
-            return;
-        }
         showLoadBlocker(attempts===1
           ? "You're offline — waiting to reconnect…"
           : "Still waiting for a connection… your data is safe on the server, we just can't reach it yet.");
@@ -289,36 +302,33 @@ window.storage = storage;
       state = Object.assign(state, snap.data().value);
     }
     stateReadyToPersist = true;
-    applyTheme();
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
-    await loadNotificationSettings();
     await loadMyGroupIds();
     await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
+    renderFocusPresetNames();
     render();
     startLiveTimers();
     subscribeSelfLiveStatus();
     subscribeSelfNudges();
     subscribeOwnBoard();
     renderSnapRow();
-    scheduleLocalTaskAlerts();
-    setLiveStatus({ todayTotalMin: todayTotalMinutes() });
+    setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
     refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
     friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
     setSyncStatus('ok');
     checkJoinLinkParam();
   }
-  
   function checkJoinLinkParam(){
     const params = new URLSearchParams(location.search);
     const code = params.get('join');
     if(!code) return;
-    history.replaceState(null, '', location.pathname);
-    if(myGroupIds.length && activeGroupData && activeGroupData.inviteCode===code.toUpperCase()) return;
+    history.replaceState(null, '', location.pathname); // strip it so a refresh doesn't re-prompt
+    if(myGroupIds.length && activeGroupData && activeGroupData.inviteCode===code.toUpperCase()) return; // already in it & active
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `
@@ -355,14 +365,19 @@ window.storage = storage;
       }
     });
   }
-
+  // ---------- daily backup snapshot (safety net, independent of the live save path) ----------
+  // Once per calendar day, on a confirmed-fresh load from the server, mirror the
+  // whole board to a separate collection keyed by date. This never overwrites
+  // itself and is never read by the app's normal code path, so a bug in normal
+  // save/merge logic can't also corrupt or skip a backup — there's always a
+  // same-day-or-recent snapshot to manually restore from in the Firebase console.
   async function maybeWriteDailyBackup(){
     if(!me) return;
     const todayKey = fmtDate(new Date());
     const backupRef = doc(db, 'boardBackups', me.id + '_' + todayKey);
     try{
       const existing = await getDoc(backupRef);
-      if(existing.exists()) return;
+      if(existing.exists()) return; // already backed up today
       await setDoc(backupRef, { uid: me.id, date: todayKey, savedAt: Date.now(), value: state });
     }catch(e){ console.warn('daily backup failed', e); }
   }
@@ -378,9 +393,11 @@ window.storage = storage;
     try{ await setDoc(doc(db, 'commentReads', me.id), myReads); }catch(e){}
   }
   let saveTimeout = null;
-  let stateReadyToPersist = false; 
+  let stateReadyToPersist = false; // becomes true only after loadState() has reconciled with the server —
+                                    // guards against any accidental early save overwriting real data with a
+                                    // still-empty/still-stale in-memory `state`
   function saveState(){
-    if(!stateReadyToPersist){ return; }
+    if(!stateReadyToPersist){ console.warn('saveState() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     setSyncStatus('syncing');
     saveTimeout = setTimeout(async ()=>{
@@ -393,7 +410,7 @@ window.storage = storage;
     }, 250);
   }
   async function flushStateNow(){
-    if(!stateReadyToPersist){ return; }
+    if(!stateReadyToPersist){ console.warn('flushStateNow() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     try{
       await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
@@ -406,10 +423,10 @@ window.storage = storage;
   });
 
   // ---------- auth: login / sign up / logout ----------
+  let booted = false;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
   const authError = document.getElementById('authError');
-  let isInitializing = false;
   
   function showAuth(){
     authScreen.style.display = 'flex';
@@ -431,48 +448,48 @@ window.storage = storage;
     setAuthError('');
   });
 
-  // 1. MASTER AUTH LISTENER (Handles all logins automatically)
-  onAuthStateChanged(auth, async (user)=>{
-    if(user){
-      if(isInitializing) return; 
-      isInitializing = true;
-      window.__meId = user.uid;
-      try{
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
-      }catch(e){ 
-        me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null }; 
-      }
-      showApp();
-      await loadState();
-      isInitializing = false;
-    } else {
-      isInitializing = false;
-      me = null;
-      window.__meId = null;
-      showAuth();
-    }
-  });
-
-  // 2. GOOGLE SIGN IN (Popup fallback to fix iOS loop)
+  // GOOGLE SIGN IN LOGIC
   document.getElementById('googleAuthBtn').addEventListener('click', async (e)=>{
-    e.preventDefault(); 
+    e.preventDefault(); // PREVENTS PAGE RELOAD
     setAuthError('');
     document.getElementById('googleAuthBtn').disabled = true;
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
     } catch(e) {
-      if(e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-         setAuthError(e.message || 'Google sign-in failed.');
-      }
+      setAuthError(e.message || 'Google sign-in failed.');
       document.getElementById('googleAuthBtn').disabled = false;
     }
   });
 
-  // 3. EMAIL & PASSWORD LOGIN
+  // SAFE GOOGLE REDIRECT HANDLER (Contained within scope)
+  getRedirectResult(auth).then(async (result) => {
+    if (result && result.user && !booted) {
+      booted = true;
+      window.__meId = result.user.uid;
+      try {
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { 
+          id: result.user.uid, 
+          name: result.user.displayName || 'Student', 
+          color: COLORS[0], 
+          photo: result.user.photoURL || null 
+        };
+      } catch(err) {
+        me = { id: result.user.uid, name: result.user.displayName || 'Student', color: COLORS[0], photo: result.user.photoURL || null };
+      }
+      showApp();
+      await loadState();
+    }
+  }).catch((e) => {
+    if (e && e.code !== 'auth/redirect-cancelled-by-user') {
+      setAuthError(e.message || 'Google sign-in redirect failed.');
+    }
+  });
+
+  // EMAIL & PASSWORD LOGIN LOGIC
   document.getElementById('authSubmit').addEventListener('click', async (e)=>{
-    e.preventDefault(); 
+    e.preventDefault(); // PREVENTS INSTANT PAGE RELOAD
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     const name = document.getElementById('authName').value.trim();
@@ -482,17 +499,27 @@ window.storage = storage;
     if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
+    booted = true; // PREVENTS DOUBLE LOADING RACE CONDITION
 
-    try {
+    try{
       if(authMode==='signup'){
         const cred = await createUserWithEmailAndPassword(auth, email, password);
+        window.__meId = cred.user.uid;
         me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
         await window.storage.set('study-board-profile', JSON.stringify(me), false);
         await registerUser(me);
+        showApp();
+        await loadState();
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        window.__meId = cred.user.uid;
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+        showApp();
+        await loadState();
       }
-    } catch (e) {
+    }catch (e) {
+      booted = false; // RELEASES THE LOCK IF LOGIN FAILS
       let readableMessage = "An error occurred during authentication.";
       if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
         readableMessage = "Incorrect password or email address.";
@@ -504,8 +531,8 @@ window.storage = storage;
         readableMessage = e.message || "Something went wrong.";
       }
       setAuthError(readableMessage);
-      document.getElementById('authSubmit').disabled = false;
     }
+    document.getElementById('authSubmit').disabled = false;
   });
 
   async function doLogout(){
@@ -526,7 +553,7 @@ window.storage = storage;
     viewingId = null;
     try{
       await signOut(auth);
-      window.location.reload(); 
+      window.location.reload(); // FORCES A CLEAN RESTART AFTER LOGOUT
     }catch(e){
       alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
     }
@@ -589,19 +616,6 @@ window.storage = storage;
           </div>
         </div>
         <div class="section-divider"></div>
-        <h4 class="modal-subhead">Appearance</h4>
-        <div class="field-row">
-          <div class="appearance-row">
-            <div class="seg-row" id="acct-theme-mode">
-              <button type="button" class="seg-btn ${(state.themeMode||'dark')==='dark'?'sel':''}" data-mode="dark" title="Dark">●</button>
-              <button type="button" class="seg-btn ${state.themeMode==='light'?'sel':''}" data-mode="light" title="Light">☀</button>
-            </div>
-            <div class="color-row" id="acct-palette">
-              ${PALETTES.map(p=>`<div class="swatch ${p.id===(state.themePalette||'cyan')?'sel':''}" data-palette="${p.id}" style="background:${p.accent}" title="${p.id}"></div>`).join('')}
-            </div>
-          </div>
-        </div>
-        <div class="section-divider"></div>
         <h4 style="margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Study goals</h4>
         <div class="field-row">
           <label>Daily goal (hours, 0 = off)</label>
@@ -633,6 +647,7 @@ window.storage = storage;
             <option value="300000" ${snapSettings.freqMs===300000?'selected':''}>Every 5 min</option>
           </select>
         </div>
+        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with. Off by default. The camera turns on only for a moment to take each snapshot, then turns off again — it's never left running.</div>
         <div class="section-divider"></div>
         <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">👥 My Groups</button>
         <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
@@ -646,21 +661,7 @@ window.storage = storage;
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.querySelector('#acct-cancel').addEventListener('click', close);
-
-    backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(b=>b.classList.remove('sel'));
-        btn.classList.add('sel');
-        setThemeMode(btn.dataset.mode);
-      });
-    });
-    backdrop.querySelectorAll('#acct-palette .swatch').forEach(sw=>{
-      sw.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('#acct-palette .swatch').forEach(s=>s.classList.remove('sel'));
-        sw.classList.add('sel');
-        setThemePalette(sw.dataset.palette);
-      });
-    });
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
     let pickedColor = me.color;
     backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
@@ -725,14 +726,1187 @@ window.storage = storage;
         stopSnapshotScheduler();
         if(wasEnabled) setLiveStatus({ snapshot:null, snapshotAt:null });
       } else if(camCaptureIntervalHandle){
+        // frequency may have changed — reschedule with the new interval
         stopSnapshotScheduler();
         startSnapshotScheduler();
       } else if(timerRunning){
         startSnapshotScheduler();
       }
       renderSnapRow();
+
       renderHeaderAvatar();
       render();
+      close();
+    });
+  }
+
+  // ---------- notifications ----------
+  const NOTIF_LIMIT = 60;
+  async function loadNotifications(uid){
+    try{
+      const snap = await getDoc(doc(db, 'notifications', uid));
+      return snap.exists() ? (snap.data().items || []) : [];
+    }catch(e){ return []; }
+  }
+  async function pushNotification(uid, text){
+    if(!uid) return;
+    try{
+      const items = await loadNotifications(uid);
+      items.push({ text, ts: Date.now(), read:false });
+      while(items.length > NOTIF_LIMIT) items.shift();
+      await setDoc(doc(db, 'notifications', uid), { items });
+    }catch(e){ console.error('notify failed', e); }
+  }
+  async function notifyOthers(text, excludeId){
+    const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
+    for(const u of targets){ await pushNotification(u.id, text); }
+  }
+  async function notifyForComment(cid, title, text){
+    const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
+    if(cid.startsWith('p_')){
+      const ownerId = cid.split('_')[1];
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+    } else if(cid.startsWith('s_')){
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+    }
+  }
+  async function refreshBellBadge(){
+    if(!me) return;
+    const items = await loadNotifications(me.id);
+    const unread = items.filter(i=>!i.read).length;
+    const badge = document.getElementById('bellBadge');
+    if(!badge) return;
+    if(unread>0){ badge.style.display='flex'; badge.textContent = unread>9?'9+':String(unread); }
+    else { badge.style.display='none'; }
+  }
+  async function openNotificationsModal(){
+    const items = await loadNotifications(me.id); // ascending, oldest first
+    const displayItems = items.slice().reverse();
+    const permState = await pushPermissionState();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
+        <button class="close-x">×</button>
+        <h3>Notifications</h3>
+        ${permState==='default' ? `
+          <div class="live-row" style="justify-content:space-between; margin-bottom:12px;">
+            <span style="color:var(--chalk-dim);">Get alerts even when the app's closed</span>
+            <button class="btn btn-primary" id="enablePushBtn" style="flex:none; padding:8px 14px;">Enable</button>
+          </div>` : ''}
+        ${permState==='granted' ? `
+          <div class="live-row" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--chalk-dim);">Push notifications</span>
+            <button class="btn btn-ghost" id="enablePushBtn" style="flex:none; padding:8px 14px;">Re-check / fix</button>
+          </div>
+          <div id="pushDetailMsg" style="font-size:10.5px; color:var(--chalk-faint); margin-bottom:12px; word-break:break-word;"></div>` : ''}
+        ${permState==='denied' ? `
+          <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:12px;">
+            Notifications are blocked for this app in your browser/phone settings.
+          </div>` : ''}
+        <div style="flex:1; overflow-y:auto;">
+          ${displayItems.length ? displayItems.map(n=>`
+            <div class="notif-item ${n.read?'':'unread'}">
+              <div>${escapeHtml(n.text)}</div>
+              <div class="t">${timeAgo(n.ts)}</div>
+            </div>
+          `).join('') : `<div style="color:var(--chalk-faint); font-size:12px;">No notifications yet.</div>`}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    const pushBtn = backdrop.querySelector('#enablePushBtn');
+    if(pushBtn){
+      pushBtn.addEventListener('click', async ()=>{
+        pushBtn.textContent = '…';
+        const res = await enablePushNotifications();
+        const detailEl = backdrop.querySelector('#pushDetailMsg');
+        if(res.ok){ pushBtn.textContent = 'Enabled ✓'; pushBtn.disabled = true; if(detailEl) detailEl.textContent = ''; }
+        else if(res.reason==='not_configured'){ pushBtn.textContent = 'Not set up yet'; pushBtn.disabled = true; }
+        else if(res.reason==='denied'){ pushBtn.textContent = 'Blocked in browser settings'; }
+        else {
+          pushBtn.textContent = 'Try again';
+          if(detailEl) detailEl.textContent = res.detail ? `Error: ${res.detail}` : 'Unknown error — check the browser console for details.';
+        }
+      });
+    }
+
+    if(items.length){
+      try{
+        await setDoc(doc(db, 'notifications', me.id), { items: [] });
+      }catch(e){}
+      refreshBellBadge();
+    }
+  }
+
+  function renderGroupBar(){
+    const label = document.getElementById('groupBarLabel');
+    if(!label) return;
+    if(!activeGroupData){
+      label.textContent = 'No group — tap to create or join one';
+      return;
+    }
+    let deadlineTag = '';
+    if(activeGroupData.deadlineAt){
+      const ended = Date.now() > activeGroupData.deadlineAt;
+      const d = new Date(activeGroupData.deadlineAt);
+      deadlineTag = `<span class="deadline-tag">${ended ? 'ENDED' : 'ends '+MONTHS[d.getMonth()]+' '+d.getDate()}</span>`;
+    }
+    label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
+  }
+  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
+  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
+    if(activeGroupId) openGroupsModal(activeGroupId);
+    else openGroupsModal();
+  });
+
+  function openGroupsModal(jumpToGroupId){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal" id="grpModalBody"></div>`;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    async function drawList(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>My Groups</h3>
+        <div id="grp-list-wrap"><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div></div>
+        <div class="grp-actions-row">
+          <button class="btn btn-ghost" id="grp-join-btn">Join with code</button>
+          <button class="btn btn-primary" id="grp-create-btn">+ Create group</button>
+        </div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      const listWrap = body.querySelector('#grp-list-wrap');
+      const groups = [];
+      for(const gid of myGroupIds){
+        try{ const snap = await getDoc(doc(db,'groups',gid)); if(snap.exists()) groups.push(snap.data()); }catch(e){}
+      }
+      if(!groups.length){
+        listWrap.innerHTML = `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">You're not in any groups yet.</div>`;
+      } else {
+        listWrap.innerHTML = groups.map(g=>{
+          const count = Object.keys(g.members||{}).length;
+          const ended = g.deadlineAt && Date.now() > g.deadlineAt;
+          return `
+            <div class="grp-list-item ${g.id===activeGroupId?'active':''}" data-gid="${g.id}">
+              <div>
+                <div class="name">${escapeHtml(g.name)}</div>
+                <div class="meta">${count} member${count===1?'':'s'}${ended?' · ended':''}${g.visibility==='private'?' · 🔒 private':''}</div>
+              </div>
+              <div style="color:var(--chalk-faint);">›</div>
+            </div>
+          `;
+        }).join('');
+        listWrap.querySelectorAll('[data-gid]').forEach(el=>{
+          el.addEventListener('click', ()=> drawDetail(el.dataset.gid));
+        });
+      }
+      body.querySelector('#grp-join-btn').addEventListener('click', drawJoin);
+      body.querySelector('#grp-create-btn').addEventListener('click', drawCreate);
+    }
+
+    function drawCreate(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>Create a group</h3>
+        <div class="field-row">
+          <label>Group name</label>
+          <input type="text" id="gc-name" placeholder="e.g. CSAT batch">
+        </div>
+        <div class="field-row">
+          <label>Privacy</label>
+          <div class="mode-switch">
+            <button type="button" class="active" id="gc-public">Public (code only)</button>
+            <button type="button" id="gc-private">Private (+password)</button>
+          </div>
+        </div>
+        <div class="field-row hidden" id="gc-pass-row">
+          <label>Password (required for private groups)</label>
+          <input type="text" id="gc-password" placeholder="Set a password">
+        </div>
+        <div class="field-row">
+          <label>Deadline <span style="opacity:.6; text-transform:none;">(optional — a week, a month, exam date…)</span></label>
+          <input type="date" id="gc-deadline">
+        </div>
+        <div class="field-row">
+          <label>Suggested daily goal (hours, 0 = off)</label>
+          <input type="number" id="gc-daily" min="0" step="0.5" value="2">
+        </div>
+        <div class="field-row">
+          <label>Suggested weekly goal (hours, 0 = off)</label>
+          <input type="number" id="gc-weekly" min="0" step="0.5" value="10">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gc-back">Back</button>
+          <button class="btn btn-primary" id="gc-save">Create</button>
+        </div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#gc-back').addEventListener('click', drawList);
+      let isPrivate = false;
+      body.querySelector('#gc-public').addEventListener('click', ()=>{
+        isPrivate=false;
+        body.querySelector('#gc-public').classList.add('active');
+        body.querySelector('#gc-private').classList.remove('active');
+        body.querySelector('#gc-pass-row').classList.add('hidden');
+      });
+      body.querySelector('#gc-private').addEventListener('click', ()=>{
+        isPrivate=true;
+        body.querySelector('#gc-private').classList.add('active');
+        body.querySelector('#gc-public').classList.remove('active');
+        body.querySelector('#gc-pass-row').classList.remove('hidden');
+      });
+      body.querySelector('#gc-save').addEventListener('click', async ()=>{
+        const name = body.querySelector('#gc-name').value.trim();
+        if(!name){ alert('Give your group a name.'); return; }
+        const password = body.querySelector('#gc-password').value.trim();
+        if(isPrivate && !password){ alert('Private groups need a password.'); return; }
+        const deadlineStr = body.querySelector('#gc-deadline').value;
+        const deadlineMs = deadlineStr ? new Date(deadlineStr+'T23:59:59').getTime() : null;
+        const dailyGoalHours = parseFloat(body.querySelector('#gc-daily').value)||0;
+        const weeklyGoalHours = parseFloat(body.querySelector('#gc-weekly').value)||0;
+        body.querySelector('#gc-save').disabled = true;
+        try{
+          await createGroup({ name, isPrivate, password, deadlineMs, dailyGoalHours, weeklyGoalHours });
+          close();
+        }catch(e){ alert('Could not create group: '+e.message); body.querySelector('#gc-save').disabled = false; }
+      });
+    }
+
+    function drawJoin(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>Join a group</h3>
+        <div class="field-row">
+          <label>Invite code</label>
+          <input type="text" id="gj-code" placeholder="e.g. AB12CD" style="text-transform:uppercase;">
+        </div>
+        <div class="field-row">
+          <label>Password <span style="opacity:.6; text-transform:none;">(only if the group has one)</span></label>
+          <input type="text" id="gj-password" placeholder="Leave blank if none">
+        </div>
+        <div class="status" id="gj-status" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:8px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gj-back">Back</button>
+          <button class="btn btn-primary" id="gj-save">Join</button>
+        </div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#gj-back').addEventListener('click', drawList);
+      body.querySelector('#gj-save').addEventListener('click', async ()=>{
+        const code = body.querySelector('#gj-code').value;
+        const password = body.querySelector('#gj-password').value;
+        const statusEl = body.querySelector('#gj-status');
+        statusEl.textContent = '';
+        body.querySelector('#gj-save').disabled = true;
+        try{
+          const g = await joinGroupByCode(code, password);
+          statusEl.style.color = 'var(--ok)';
+          statusEl.textContent = `Joined ${g.name}!`;
+          setTimeout(close, 700);
+        }catch(e){
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = e.message;
+          body.querySelector('#gj-save').disabled = false;
+        }
+      });
+    }
+
+    async function drawDetail(groupId){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `<button class="close-x">×</button><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div>`;
+      body.querySelector('.close-x').addEventListener('click', close);
+      let g;
+      try{ const snap = await getDoc(doc(db,'groups',groupId)); g = snap.exists() ? snap.data() : null; }catch(e){}
+      if(!g){ body.innerHTML = `<button class="close-x">×</button><h3>Group not found</h3>`; body.querySelector('.close-x').addEventListener('click', close); return; }
+      const isOwner = g.ownerId===me.id;
+      const isActive = g.id===activeGroupId;
+      const memberIds = Object.keys(g.members||{});
+      const inviteUrl = location.origin + location.pathname + '?join=' + g.inviteCode;
+      const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(inviteUrl);
+      const ended = g.deadlineAt && Date.now() > g.deadlineAt;
+      const myHide = (g.members[me.id]||{}).hideSchedule || false;
+
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>${escapeHtml(g.name)}</h3>
+        <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:10px;">
+          ${g.visibility==='private' ? '🔒 Private' : '🌐 Public'} · ${memberIds.length} member${memberIds.length===1?'':'s'}
+          ${g.deadlineAt ? ` · ${ended?'ended':'ends'} ${new Date(g.deadlineAt).toLocaleDateString()}` : ''}
+        </div>
+
+        ${!isActive ? `<button class="btn btn-primary" id="gd-switch" style="width:100%; margin-bottom:10px;">Switch to this group</button>` : `<div style="text-align:center; color:var(--accent); font-size:12px; margin-bottom:10px;">✓ Currently active</div>`}
+
+        <div class="grp-detail-code">
+          <div style="font-size:10px; color:var(--chalk-faint); text-transform:uppercase; margin-bottom:4px;">Invite code</div>
+          <div class="code">${g.inviteCode}</div>
+          <img src="${qrUrl}" alt="QR code">
+          <button class="btn btn-ghost" id="gd-copy" style="width:100%; margin-top:6px;">Copy invite link</button>
+        </div>
+
+        <div class="grp-toggle-row">
+          <span>Hide my schedule from this group</span>
+          <label class="switch"><input type="checkbox" id="gd-hide" ${myHide?'checked':''}><span class="slider"></span></label>
+        </div>
+
+        ${isOwner && g.deadlineAt ? `<button class="btn btn-ghost" id="gd-extend" style="width:100%; margin:6px 0;">Extend deadline</button>` : ''}
+
+        <h4 style="margin:16px 0 6px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Members</h4>
+        <div id="gd-members"></div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gd-back">Back</button>
+          <button class="btn btn-danger" id="gd-leave">Leave group</button>
+        </div>
+      `;
+      body.querySelector('#gd-members').innerHTML = memberIds.map(uid=>{
+        const p = profileFor(uid);
+        return `
+          <div class="grp-member-row">
+            <span><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${uid===me.id?' (you)':''}${uid===g.ownerId?' 👑':''}</span>
+            ${isOwner && uid!==me.id ? `<button class="task-del" data-remove="${uid}">×</button>` : ''}
+          </div>
+        `;
+      }).join('');
+      body.querySelector('#gd-members').querySelectorAll('[data-remove]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          await removeMemberFromGroup(groupId, btn.dataset.remove);
+          drawDetail(groupId);
+        });
+      });
+      const switchBtn = body.querySelector('#gd-switch');
+      if(switchBtn) switchBtn.addEventListener('click', async ()=>{ await setActiveGroup(groupId); close(); });
+      body.querySelector('#gd-copy').addEventListener('click', ()=>{
+        navigator.clipboard?.writeText(inviteUrl).catch(()=>{});
+        const btn = body.querySelector('#gd-copy'); const old = btn.textContent;
+        btn.textContent = 'Copied!'; setTimeout(()=> btn.textContent = old, 1200);
+      });
+      body.querySelector('#gd-hide').addEventListener('change', (e)=>{ setMyHideSchedule(groupId, e.target.checked); });
+      const extendBtn = body.querySelector('#gd-extend');
+      if(extendBtn) extendBtn.addEventListener('click', async ()=>{
+        const newDate = prompt('New deadline (YYYY-MM-DD):', new Date(g.deadlineAt).toISOString().slice(0,10));
+        if(!newDate) return;
+        const ms = new Date(newDate+'T23:59:59').getTime();
+        if(isNaN(ms)) return;
+        await extendGroupDeadline(groupId, ms);
+        drawDetail(groupId);
+      });
+      body.querySelector('#gd-back').addEventListener('click', drawList);
+      const leaveBtn = body.querySelector('#gd-leave');
+      if(leaveBtn) leaveBtn.addEventListener('click', async ()=>{
+        await leaveGroup(groupId);
+        drawList();
+      });
+    }
+
+    if(jumpToGroupId){ drawDetail(jumpToGroupId); } else { drawList(); }
+  }
+
+  onAuthStateChanged(auth, async (user)=>{
+    if(user && !booted){
+      booted = true;
+      window.__meId = user.uid;
+      try{
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
+      }catch(e){ me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null }; }
+      showApp();
+      await loadState();
+    } else if(!user){
+      booted = false;
+      me = null;
+      window.__meId = null;
+      showAuth();
+    }
+  });
+  async function loadUsersList(){
+    try{
+      const res = await window.storage.get(USERS_KEY, true);
+      allProfiles = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ allProfiles = []; }
+  }
+  async function registerUser(user, forceUpdate){
+    let list = [];
+    try{
+      const res = await window.storage.get(USERS_KEY, true);
+      list = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ list = []; }
+    const idx = list.findIndex(u=>u.id===user.id);
+    const entry = {id:user.id, name:user.name, color:user.color, photo:user.photo||null};
+    if(idx===-1){ list.push(entry); try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
+    else if(forceUpdate){ list[idx] = entry; try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
+    allProfiles = list;
+    deriveUsersList();
+  }
+
+  // ---------- groups engine ----------
+  function genCode(len){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    let s=''; for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
+    return s;
+  }
+  function profileFor(id){
+    const p = allProfiles.find(u=>u.id===id);
+    if(p) return p;
+    if(me && id===me.id) return { id, name: me.name, color: me.color, photo: me.photo };
+    return { id, name: 'Member', color: '#7FB3D5', photo: null };
+  }
+  function deriveUsersList(){
+    if(!me){ usersList = []; return; }
+    const memberIds = (activeGroupData && activeGroupData.members) ? Object.keys(activeGroupData.members) : [me.id];
+    usersList = memberIds.map(profileFor);
+    if(!usersList.find(u=>u.id===me.id)) usersList.unshift(profileFor(me.id));
+  }
+  async function loadMyGroupIds(){
+    try{
+      const snap = await getDoc(doc(db, 'groupMemberships', me.id));
+      if(snap.exists()){
+        myGroupIds = snap.data().groupIds || [];
+        activeGroupId = snap.data().activeGroupId || myGroupIds[0] || null;
+        return true; // already set up — no migration needed
+      }
+    }catch(e){ /* fall through to migration */ }
+    return false;
+  }
+  async function subscribeActiveGroup(){
+    if(groupUnsub){ groupUnsub(); groupUnsub = null; }
+    if(!activeGroupId){ activeGroupData = null; deriveUsersList(); renderGroupBar(); renderPeopleRow(); renderSnapRow(); return; }
+    groupUnsub = onSnapshot(doc(db, 'groups', activeGroupId), (snap)=>{
+      activeGroupData = snap.exists() ? snap.data() : null;
+      deriveUsersList();
+      renderGroupBar();
+      renderPeopleRow();
+      renderSnapRow();
+    }, (err)=> console.warn('group sync error', err));
+  }
+  async function setActiveGroup(groupId){
+    activeGroupId = groupId;
+    try{ await setDoc(doc(db,'groupMemberships', me.id), { activeGroupId: groupId }, { merge:true }); }catch(e){}
+    viewingId = null;
+    await subscribeActiveGroup();
+  }
+  async function createGroup({ name, isPrivate, password, deadlineMs, dailyGoalHours, weeklyGoalHours }){
+    const groupId = 'grp_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    const inviteCode = genCode(6);
+    const groupDoc = {
+      id: groupId, name: name || 'Untitled group', ownerId: me.id,
+      members: { [me.id]: { joinedAt: Date.now(), hideSchedule:false } },
+      visibility: isPrivate ? 'private' : 'public',
+      password: isPrivate && password ? password : null,
+      inviteCode,
+      deadlineAt: deadlineMs || null,
+      dailyGoalHours: dailyGoalHours || 0,
+      weeklyGoalHours: weeklyGoalHours || 0,
+      createdAt: Date.now()
+    };
+    await setDoc(doc(db,'groups',groupId), groupDoc);
+    await setDoc(doc(db,'groupInvites',inviteCode), { groupId });
+    if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    await setActiveGroup(groupId);
+    return groupDoc;
+  }
+  async function joinGroupByCode(codeRaw, passwordAttempt){
+    const code = (codeRaw||'').trim().toUpperCase();
+    if(!code) throw new Error('Enter an invite code.');
+    const invSnap = await getDoc(doc(db,'groupInvites', code));
+    if(!invSnap.exists()) throw new Error('That invite code doesn\'t match any group.');
+    const groupId = invSnap.data().groupId;
+    const gSnap = await getDoc(doc(db,'groups',groupId));
+    if(!gSnap.exists()) throw new Error('This group no longer exists.');
+    const g = gSnap.data();
+    if(g.password && g.password !== (passwordAttempt||'')) throw new Error('Wrong password for this group.');
+    await setDoc(doc(db,'groups',groupId), { members: { [me.id]: { joinedAt: Date.now(), hideSchedule:false } } }, { merge:true });
+    if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    await setActiveGroup(groupId);
+    const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
+    return g;
+  }
+  async function leaveGroup(groupId){
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
+    myGroupIds = myGroupIds.filter(id=>id!==groupId);
+    const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: nextActive }, { merge:true });
+    await setActiveGroup(nextActive);
+  }
+  async function removeMemberFromGroup(groupId, uid){
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [uid]: deleteField() } }, { merge:true }); }catch(e){}
+  }
+  async function extendGroupDeadline(groupId, newDeadlineMs){
+    await setDoc(doc(db,'groups',groupId), { deadlineAt: newDeadlineMs }, { merge:true });
+  }
+  async function setMyHideSchedule(groupId, hide){
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: { hideSchedule: hide } } }, { merge:true }); }catch(e){}
+  }
+
+  function pushSharedBoard(){
+    if(!me) return;
+    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, weeklyGoals: state.weeklyGoals, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
+    window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
+  }
+  async function fetchFriendBoard(id){
+    try{
+      const res = await window.storage.get('board:'+id, true);
+      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}};
+    }catch(e){
+      friendCache[id] = {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}};
+    }
+  }
+
+  function renderPeopleRow(){
+    const el = document.getElementById('peopleRow');
+    if(!me){ el.innerHTML=''; return; }
+    const others = usersList.filter(u=>u.id!==me.id);
+    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
+    el.innerHTML = chips.map(c=>{
+      const st = liveCache[c.id];
+      const studying = !!(st && st.studying);
+      const mins = liveMinutesFor(st);
+      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
+      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
+      return `
+        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
+          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
+          <span class="p-meta">
+            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
+            <span class="p-today">${fmtHM(mins)} today</span>
+          </span>
+        </div>
+      `;
+    }).join('');
+    el.querySelectorAll('.person-chip').forEach(chip=>{
+      chip.addEventListener('click', async ()=>{
+        const id = chip.dataset.id;
+        if(id === me.id){ viewingId = null; render(); return; }
+        viewingId = id;
+        await fetchFriendBoard(id);
+        render();
+      });
+    });
+  }
+
+  function renderSnapRow(){
+    const el = document.getElementById('snapRow');
+    if(!el || !me) return;
+    if(currentScreen!=='live'){ el.style.display = 'none'; return; }
+    el.style.display = '';
+    const others = usersList.filter(u=>u.id!==me.id);
+    const people = [{id:me.id, name:'You', mine:true}, ...others.map(u=>({id:u.id, name:u.name, mine:false}))];
+    el.innerHTML = people.map(p=>{
+      const st = liveCache[p.id];
+      const studying = !!(st && st.studying);
+      const stale = isSnapshotStale(st);
+      const streak = p.mine ? computeStreak() : computeStreakFor(friendCache[p.id] || {});
+      const circleClass = ['snap-circle', p.mine?'clickable':'clickable', studying && !stale ? 'pulsing':'', stale?'stale':''].filter(Boolean).join(' ');
+      const inner = (st && st.snapshot) ? `<img src="${st.snapshot}" alt="">` : p.name.slice(0,1).toUpperCase();
+      let subText;
+      if(p.mine){
+        subText = !snapSettings.enabled ? 'snapshots off' : (camPausedManually ? 'paused' : (studying ? 'live' : 'off · not studying'));
+      } else {
+        subText = studying ? (stale ? 'reconnecting…' : 'live') : (stale ? `seen ${timeAgoShort(st.snapshotAt)}` : 'not studying');
+      }
+      const muteBadge = p.mine ? `<div class="snap-mute-badge" id="snapMuteBadge" title="Pause my snapshots">${(camPausedManually||!snapSettings.enabled)?'🚫':'📷'}</div>` : '';
+      return `
+        <div class="snap-tile">
+          <div class="snap-circle-wrap">
+            <div class="${circleClass}" data-id="${p.id}" data-mine="${p.mine?'1':'0'}">${inner}</div>
+            ${muteBadge}
+          </div>
+          <div class="snap-name">${escapeHtml(p.name)}</div>
+          ${streak>0 ? `<div class="snap-streak">🔥${streak}</div>` : ''}
+          <div class="snap-sub">${subText}</div>
+        </div>
+      `;
+    }).join('');
+    const muteBadgeEl = document.getElementById('snapMuteBadge');
+    if(muteBadgeEl){
+      muteBadgeEl.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        camPausedManually = !camPausedManually;
+        if(camPausedManually) stopSnapshotScheduler(); else startSnapshotScheduler();
+        renderSnapRow();
+      });
+    }
+    el.querySelectorAll('.snap-circle[data-mine="0"]').forEach(circle=>{
+      circle.addEventListener('click', ()=> sendNudge(circle.dataset.id));
+    });
+  }
+
+  // ---------- helpers ----------
+  function fmtDate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function fmtHM(totalMinutes){
+    const m = Math.max(0, Math.round(totalMinutes||0));
+    const h = Math.floor(m/60), mm = m%60;
+    return h>0 ? `${h}h ${mm}m` : `${mm}m`;
+  }
+  function fmtHMCompact(totalMinutes){
+    const m = Math.max(0, Math.round(totalMinutes||0));
+    if(m < 60) return m+'m';
+    const h = Math.round((m/60)*10)/10;
+    return h+'h';
+  }
+  function formatClock(ts){
+    if(!ts) return '';
+    const d = new Date(ts);
+    let h = d.getHours(); const m = d.getMinutes();
+    const ampm = h>=12 ? 'PM':'AM';
+    h = h%12; if(h===0) h=12;
+    return `${h}:${pad(m)} ${ampm}`;
+  }
+  function fmt12(hhmm){
+    if(!hhmm || hhmm.indexOf(':')===-1) return hhmm || '';
+    const [hStr,mStr] = hhmm.split(':');
+    let h = parseInt(hStr,10), m = parseInt(mStr,10);
+    if(isNaN(h)||isNaN(m)) return hhmm;
+    const ampm = h>=12 ? 'PM':'AM';
+    h = h%12; if(h===0) h=12;
+    return `${h}:${pad(m)} ${ampm}`;
+  }
+  function addMinutesToHHMM(hhmm, minutes){
+    if(!hhmm || hhmm.indexOf(':')===-1) return hhmm || '';
+    let [h,m] = hhmm.split(':').map(Number);
+    let total = h*60 + m + (minutes||0);
+    total = ((total % 1440) + 1440) % 1440; // wrap across midnight
+    return `${pad(Math.floor(total/60))}:${pad(total%60)}`;
+  }
+  function timeRangeLabel(start, duration){
+    if(!start) return '';
+    const end = addMinutesToHHMM(start, duration||30);
+    return `${fmt12(start)} – ${fmt12(end)}`;
+  }
+  function timeColHtml(start, duration){
+    if(!start) return '';
+    const end = addMinutesToHHMM(start, duration||30);
+    return `${fmt12(start)}<div class="end"><span class="arrow">↓</span> ${fmt12(end)}</div>`;
+  }
+  function timeAgo(ts){
+    const s = Math.floor((Date.now()-ts)/1000);
+    if(s<60) return 'just now';
+    const m = Math.floor(s/60); if(m<60) return m+'m ago';
+    const h = Math.floor(m/60); if(h<24) return h+'h ago';
+    const d = Math.floor(h/24); return d+'d ago';
+  }
+  function subjectColor(id){
+    const s = activeData().subjects.find(x=>x.id===id);
+    return s ? s.color : '#7FB3D5';
+  }
+  function subjectName(id){
+    const s = activeData().subjects.find(x=>x.id===id);
+    return s ? s.name : 'General';
+  }
+  function subjectColorIn(id, data){
+    const s = (data.subjects||[]).find(x=>x.id===id);
+    return s ? s.color : '#7FB3D5';
+  }
+  function subjectNameIn(id, data){
+    const s = (data.subjects||[]).find(x=>x.id===id);
+    return s ? s.name : 'General';
+  }
+
+  function weekStartKey(date){
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - d.getDay());
+    return fmtDate(d);
+  }
+  function blocksForDate(date){
+    const data = activeData();
+    const key = fmtDate(date);
+    const dow = date.getDay();
+    const wk = weekStartKey(date);
+    const templ = data.weeklyTemplate.filter(b=>b.day===dow && b.weekStart===wk).map(b=>({...b, source:'template'}));
+    const extra = (data.dailyExtra[key]||[]).map(b=>({...b, source:'extra'}));
+    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  }
+  function blocksForDateIn(data, date){
+    const key = fmtDate(date);
+    const dow = date.getDay();
+    const wk = weekStartKey(date);
+    const templ = (data.weeklyTemplate||[]).filter(b=>b.day===dow && b.weekStart===wk).map(b=>({...b, source:'template'}));
+    const extra = ((data.dailyExtra||{})[key]||[]).map(b=>({...b, source:'extra'}));
+    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  }
+
+  // ---------- shared "together" tasks (visible + tickable by everyone) ----------
+  function sharedTasksKey(dateKey){ return 'shared-tasks:'+dateKey; }
+  async function loadSharedTasks(dateKey){
+    try{
+      const res = await window.storage.get(sharedTasksKey(dateKey), true);
+      return res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ return []; }
+  }
+  async function saveSharedTasks(dateKey, list){
+    try{ await window.storage.set(sharedTasksKey(dateKey), JSON.stringify(list), true); }
+    catch(e){ console.error('shared task save failed', e); }
+  }
+  function nextStatus(cur){
+    return cur==='done' ? 'missed' : (cur==='missed' ? undefined : 'done');
+  }
+
+  // ---------- tab navigation ----------
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      currentScreen = btn.dataset.screen;
+      document.getElementById('screen-'+currentScreen).classList.add('active');
+      if(currentScreen==='history' && !document.getElementById('historyDate').value){
+        document.getElementById('historyDate').value = fmtDate(new Date());
+      }
+      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
+      document.getElementById('headerTitle').textContent = titles[currentScreen][0];
+      document.getElementById('headerSub').textContent = titles[currentScreen][1];
+      render();
+    });
+  });
+  document.getElementById('fabAdd').style.display = 'none';
+
+  // ---------- TIMER LOGIC ----------
+  let timerMode = 'stopwatch'; // or 'countdown'
+  let timerRunning = false;
+  let elapsedMs = 0;
+  let countdownTotalMs = 60*60*1000;
+  let tickHandle = null;
+  let lastTick = null;
+
+  function applyModeUI(mode){
+    timerMode = mode;
+    document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
+    document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
+    document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
+    document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
+    document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
+    updateRunningDeclutter();
+  }
+  // Hide the irrelevant mode button / unselected lengths once a session is
+  // "committed" (started, or paused mid-session) — before that, and after a
+  // full Reset/Stop, both options stay visible so you can freely switch your mind.
+  function updateRunningDeclutter(){
+    const committed = timerRunning || elapsedMs > 0;
+    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
+    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
+    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
+      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
+    });
+  }
+  document.getElementById('modeStopwatch').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    applyModeUI('stopwatch');
+    elapsedMs = 0;
+    renderTimerDigits();
+  });
+  document.getElementById('modeCountdown').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    applyModeUI('countdown');
+    elapsedMs = 0;
+    renderTimerDigits();
+  });
+  document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      if(timerRunning) return;
+      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+      chip.classList.add('sel');
+      countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
+      renderTimerDigits();
+    });
+  });
+  document.getElementById('timerSubject').addEventListener('change', renderRing);
+
+  function renderFocusPresetNames(){
+    const names = state.focusPresetNames || ['10 markers','15 marker','recall','study'];
+    document.querySelectorAll('#countdownLenChips .dur-tag').forEach(el=>{
+      const i = parseInt(el.dataset.tagIdx, 10);
+      if(names[i]) el.textContent = names[i];
+    });
+  }
+  document.getElementById('renamePresetsBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    const names = (state.focusPresetNames || ['10 markers','15 marker','recall','study']).slice();
+    const mins = [10,15,30,60];
+    for(let i=0;i<4;i++){
+      const val = prompt(`Label for the ${mins[i]} min preset:`, names[i]);
+      if(val===null) break; // cancel stops the whole rename walk
+      if(val.trim()) names[i] = val.trim();
+    }
+    state.focusPresetNames = names;
+    saveState();
+    renderFocusPresetNames();
+  });
+
+  document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
+  document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
+
+  const RING_R = 100;
+  const RING_C = 2 * Math.PI * RING_R;
+  document.getElementById('ringProgress').style.strokeDasharray = RING_C;
+
+  function renderTimerDigits(){
+    let ms;
+    if(timerMode==='countdown'){
+      ms = Math.max(0, countdownTotalMs - elapsedMs);
+    } else {
+      ms = elapsedMs;
+    }
+    const totalSec = Math.floor(ms/1000);
+    const h = Math.floor(totalSec/3600);
+    const m = Math.floor((totalSec%3600)/60);
+    const s = totalSec%60;
+    const mini = document.getElementById('liveMiniDigits');
+    if(timerMode==='countdown'){
+      document.getElementById('timerDigits').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      renderRing();
+      if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    } else {
+      document.getElementById('swMain').textContent = `${pad(h)}:${pad(m)}`;
+      document.getElementById('swSec').textContent = `:${pad(s)}`;
+      document.getElementById('stopwatchFace').classList.toggle('running', timerRunning);
+      if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+    const miniStart = document.getElementById('liveMiniStart');
+    if(miniStart) miniStart.textContent = document.getElementById('startBtn').textContent;
+  }
+  function setStatusText(txt){
+    document.getElementById('timerStatus').textContent = txt;
+    document.getElementById('swStatus').textContent = txt;
+  }
+
+  function renderRing(){
+    let fraction;
+    if(timerMode==='countdown'){
+      fraction = countdownTotalMs>0 ? Math.max(0, Math.min(1, (countdownTotalMs-elapsedMs)/countdownTotalMs)) : 0;
+    } else {
+      fraction = (elapsedMs % 60000) / 60000;
+    }
+    const ring = document.getElementById('ringProgress');
+    ring.style.strokeDashoffset = RING_C * (1 - fraction);
+    if(me){
+      const subjectId = document.getElementById('timerSubject').value;
+      ring.style.stroke = subjectColorIn(subjectId, state);
+    }
+    document.getElementById('ringOuter').classList.toggle('running', timerRunning);
+  }
+
+  let sessionStartClock = null; // real wall-clock time the current (possibly paused/resumed) session first began
+
+  // ---------- distraction-free focus mode ----------
+  let wakeLockSentinel = null;
+  function updateFocusToggleVisibility(){
+    const btn = document.getElementById('focusToggleBtn');
+    if(btn) btn.classList.toggle('visible', timerRunning);
+    if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
+  }
+  async function enterFocusMode(){
+    if(!timerRunning) return; // only enterable once a session is actually running
+    document.body.classList.add('focus-active');
+    if('wakeLock' in navigator){
+      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
+    }
+  }
+  function exitFocusMode(){
+    document.body.classList.remove('focus-active');
+    if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
+  }
+  document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation(); // otherwise this same tap bubbles to the body listener below and instantly exits again
+    enterFocusMode();
+  });
+  document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    exitFocusMode(); // just brings the screen back — never touches the running timer
+  });
+  // tap anywhere to minimize back to the main screen — the timer keeps running in the background
+  document.body.addEventListener('click', (e)=>{
+    if(!document.body.classList.contains('focus-active')) return;
+    if(e.target.closest('.timer-controls')) return; // let Start/Pause/Reset keep working normally
+    exitFocusMode();
+  });
+
+  function notifyFirstSessionOfDayIfNeeded(){
+    if(elapsedMs > 0) return; // resuming from pause, not a fresh start
+    const todayKey = fmtDate(new Date());
+    const alreadyLoggedToday = (state.sessions[todayKey]||[]).length > 0;
+    if(alreadyLoggedToday) return;
+    const flagKey = 'sb-notified-first-session-'+todayKey;
+    if(localStorage.getItem(flagKey)) return;
+    localStorage.setItem(flagKey, '1');
+    notifyOthers(`${me.name} started studying today 📚`);
+  }
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    if(!timerRunning){
+      timerRunning = true;
+      lastTick = Date.now();
+      if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
+      document.getElementById('startBtn').textContent = 'Pause';
+      setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
+      tickHandle = setInterval(tick, 250);
+      const subjectId = document.getElementById('timerSubject').value;
+      setLiveStatus({
+        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
+        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+      });
+      startSnapshotScheduler();
+      updateFocusToggleVisibility();
+      updateRunningDeclutter();
+      notifyFirstSessionOfDayIfNeeded();
+    } else {
+      pauseTimer();
+    }
+  });
+  function pauseTimer(){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    document.getElementById('startBtn').textContent = 'Resume';
+    setStatusText('paused');
+    renderTimerDigits();
+    setLiveStatus({ studying:false, baseElapsedMs:elapsedMs });
+    stopSnapshotScheduler();
+    updateFocusToggleVisibility();
+    updateRunningDeclutter();
+  }
+  const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
+  function tick(){
+    const now = Date.now();
+    elapsedMs += (now - lastTick);
+    lastTick = now;
+    if(timerMode==='countdown' && elapsedMs >= countdownTotalMs){
+      elapsedMs = countdownTotalMs;
+      renderTimerDigits();
+      finishSession(true);
+      return;
+    }
+    if(elapsedMs >= MAX_SESSION_MS){
+      elapsedMs = MAX_SESSION_MS;
+      renderTimerDigits();
+      finishSession(timerMode==='countdown', 'autostop');
+      return;
+    }
+    renderTimerDigits();
+    checkMilestone();
+  }
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    if(elapsedMs > 3000){ // log if meaningful duration and not already finished
+      finishSession(false);
+    } else {
+      hardReset();
+    }
+  });
+  function todayTotalMinutes(){
+    const key = fmtDate(new Date());
+    return (state.sessions[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function todayTotalMinutesIn(data){
+    const key = fmtDate(new Date());
+    return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function minutesOnDate(date){
+    const key = fmtDate(date);
+    return (state.sessions[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function minutesOnDateIn(data, date){
+    const key = fmtDate(date);
+    return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function weekTotalMinutes(){
+    const start = startOfWeek(new Date(), 0);
+    let total = 0;
+    for(let i=0;i<7;i++){
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      if(d > new Date()) break;
+      total += minutesOnDate(d);
+    }
+    return total;
+  }
+  function weekTotalMinutesIn(data){
+    const start = startOfWeek(new Date(), 0);
+    let total = 0;
+    for(let i=0;i<7;i++){
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      if(d > new Date()) break;
+      total += minutesOnDateIn(data, d);
+    }
+    return total;
+  }
+  function computeStreakFor(data){
+    const goal = (data.goals && data.goals.dailyMin) || 0;
+    if(goal<=0) return 0;
+    const minsOnFor = (d)=>{
+      const key = fmtDate(d);
+      return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum+(s.duration||0), 0);
+    };
+    let streak = 0;
+    let cursor = new Date();
+    // if today hasn't hit the goal yet, start counting from yesterday instead
+    if(minsOnFor(cursor) < goal) cursor.setDate(cursor.getDate()-1);
+    while(minsOnFor(cursor) >= goal){
+      streak++;
+      cursor.setDate(cursor.getDate()-1);
+    }
+    return streak;
+  }
+  function computeStreak(){ return computeStreakFor(state); }
+  function renderGoalCard(){
+    const card = document.getElementById('goalCard');
+    if(!card) return;
+    const data = activeData();
+    const goals = data.goals || {};
+    if(!goals.dailyMin && !goals.weeklyMin){ card.style.display='none'; return; }
+    const viewerId = isViewingSelf() ? me.id : viewingId;
+    const streak = isViewingSelf() ? computeStreak() : computeStreakFor(data);
+    const finishedToday = todayTotalMinutesIn(data);
+    const liveToday = liveMinutesFor(liveCache[viewerId]);
+    const todayMin = Math.max(finishedToday, liveToday);
+    const weekMin = weekTotalMinutesIn(data) + Math.max(0, todayMin - finishedToday);
+    const dailyPct = goals.dailyMin ? Math.min(100, (todayMin/goals.dailyMin)*100) : 0;
+    const weeklyPct = goals.weeklyMin ? Math.min(100, (weekMin/goals.weeklyMin)*100) : 0;
+    card.style.display = 'block';
+    const self = isViewingSelf();
+    const whoLabel = self ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
+    // Privacy rule: others can see hours done and streak, never the exact target —
+    // showing done+target together would let them work out the pending gap by
+    // subtraction. Only the person themselves sees their own target/pending.
+    card.innerHTML = `
+      ${whoLabel}
+      <div class="row1">
+        <div class="streak">🔥 <b>${streak}</b> day streak</div>
+      </div>
+      ${goals.dailyMin ? `
+      <div class="goal-bar-row">
+        <div class="goal-bar-label"><span>Today</span><span>${self ? `${fmtHM(todayMin)} / ${fmtHM(goals.dailyMin)}` : `${fmtHM(todayMin)} done`}</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${dailyPct}%;"></div></div>
+      </div>` : ''}
+      ${goals.weeklyMin ? `
+      <div class="goal-bar-row">
+        <div class="goal-bar-label"><span>This week</span><span>${self ? `${fmtHM(weekMin)} / ${fmtHM(goals.weeklyMin)}` : `${fmtHM(weekMin)} done`}</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill week" style="width:${weeklyPct}%;"></div></div>
+      </div>` : ''}
+    `;
+  }
+  function hardReset(){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    elapsedMs = 0;
+    sessionStartClock = null;
+    document.getElementById('startBtn').textContent = 'Start';
+    setStatusText('ready');
+    renderTimerDigits();
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    stopSnapshotScheduler();
+    lastMilestoneHourLocal = 0;
+    updateFocusToggleVisibility();
+    updateRunningDeclutter();
+  }
+  function finishSession(completed, reason){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    const startedAtMs = sessionStartClock || (Date.now() - elapsedMs);
+    const key = fmtDate(new Date(startedAtMs));
+    if(!state.sessions[key]) state.sessions[key] = [];
+    const subjectId = document.getElementById('timerSubject').value;
+    const durationMin = Math.round(elapsedMs/60000 * 10)/10;
+    const endedAt = Date.now();
+    let justLoggedSession = null;
+    if(durationMin > 0){
+      const totalBefore = state.sessions[key].reduce((s,x)=>s+(x.duration||0),0);
+      justLoggedSession = {
+        id: 'sess_'+Date.now(),
+        subject: subjectId,
+        duration: durationMin,
+        mode: timerMode,
+        completed: completed,
+        startedAt: startedAtMs,
+        endedAt: endedAt
+      };
+      state.sessions[key].push(justLoggedSession);
+      saveState();
+      const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
+      if(dailyGoalMin > 0){
+        const totalAfter = totalBefore + durationMin;
+        if(totalBefore < dailyGoalMin && totalAfter >= dailyGoalMin){
+          const flagKey = 'sb-notified-goal-'+key;
+          if(!localStorage.getItem(flagKey)){
+            localStorage.setItem(flagKey, '1');
+            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+          }
+        }
+      }
+    }
+    setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
+    document.getElementById('startBtn').textContent = 'Start';
+    elapsedMs = 0;
+    sessionStartClock = null;
+    exitFocusMode();
+    renderTimerDigits();
+    renderSessions();
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    stopSnapshotScheduler();
+    lastMilestoneHourLocal = 0;
+    updateFocusToggleVisibility();
+    updateRunningDeclutter();
+    if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
+      promptSessionNote(justLoggedSession, key);
+    }
+  }
+  function promptSessionNote(session, dateKey){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const friend = !isViewingSelf() ? usersList.find(u=>u.id===viewingId) : null;
+    const recapHtml = friend ? `
+        <div class="recap-row">
+          <div class="recap-col mine">
+            <div class="recap-who">You</div>
+            <div class="recap-time">${fmtHM(todayTotalMinutes())}</div>
+            <div class="recap-sub">today</div>
+          </div>
+          <div class="recap-col friend">
+            <div class="recap-who">${escapeHtml(friend.name)}</div>
+            <div class="recap-time">${fmtHM(liveMinutesFor(liveCache[friend.id]))}</div>
+            <div class="recap-sub">today</div>
+          </div>
+        </div>` : '';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>What did you cover?</h3>
+        <div class="field-row">
+          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
+          <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
+          <div id="note-error" style="display:none; color:var(--danger); font-size:11.5px; margin-top:8px;">A quick note is required to log this session — it's how you track real progress.</div>
+        </div>
+        ${recapHtml}
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="note-save" style="width:100%;">Save & continue</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#note-save').addEventListener('click', async ()=>{
+      const text = backdrop.querySelector('#note-input').value.trim();
+      if(!text){
+        backdrop.querySelector('#note-error').style.display = 'block';
+        backdrop.querySelector('#note-input').focus();
+        return;
+      }
+      const list = state.sessions[dateKey] || [];
+      const s = list.find(x=>x.id===session.id);
+      if(s) s.note = text;
+      await flushStateNow();
+      renderSessions();
       close();
     });
   }
@@ -754,7 +1928,7 @@ window.storage = storage;
 
   let camPausedManually = false;
   let camCaptureIntervalHandle = null;
-  let camBusy = false;
+  let camBusy = false; // true only for the brief moment we're actually grabbing a frame
 
   function captureOneFrame(isRetry){
     if(!snapSettings.enabled || camPausedManually || !timerRunning || !me || camBusy) return;
@@ -774,6 +1948,7 @@ window.storage = storage;
         const finishFail = ()=>{
           if(settled) return; settled = true;
           cleanup();
+          // one quick retry — real camera hardware sometimes needs a second attempt to warm up
           if(!isRetry) setTimeout(()=> captureOneFrame(true), 500);
         };
         const grabFrame = ()=>{
@@ -794,13 +1969,14 @@ window.storage = storage;
         };
         video.onloadedmetadata = ()=>{
           video.play().then(()=>{
+            // poll until the sensor has actually produced a usable frame, instead of guessing a fixed delay
             const startWait = Date.now();
             const waitForFrame = ()=>{
               if(settled) return;
               if(video.readyState >= 2 && video.videoWidth > 0){
                 grabFrame();
               } else if(Date.now() - startWait > 2500){
-                finishFail(); 
+                finishFail(); // gave the camera enough time — bail and retry shortly
               } else {
                 requestAnimationFrame(waitForFrame);
               }
@@ -819,8 +1995,8 @@ window.storage = storage;
 
   function startSnapshotScheduler(){
     if(!snapSettings.enabled || camPausedManually || !timerRunning) return;
-    if(camCaptureIntervalHandle) return; 
-    captureOneFrame(); 
+    if(camCaptureIntervalHandle) return; // already scheduled
+    captureOneFrame(); // grab one right away
     camCaptureIntervalHandle = setInterval(()=>captureOneFrame(false), snapSettings.freqMs);
   }
   function stopSnapshotScheduler(){
@@ -833,6 +2009,8 @@ window.storage = storage;
 
   function isSnapshotStale(st){
     if(!st || !st.snapshotAt) return false;
+    // scale the stale window to whatever frequency that person actually broadcasts at,
+    // so a 2 or 5 minute setting doesn't get flagged as "reconnecting" between every shot
     const threshold = Math.max(3*60*1000, (st.freqMs || 60000) * 2.5);
     return (Date.now() - st.snapshotAt) > threshold;
   }
@@ -841,6 +2019,7 @@ window.storage = storage;
     return m + 'm ago';
   }
 
+  // ---------- lightweight nudge (👋) ----------
   async function sendNudge(targetId){
     if(!me || !targetId) return;
     try{ await setDoc(doc(db, 'nudges', targetId), { from: me.id, fromName: me.name, ts: Date.now() }); }catch(e){}
@@ -867,6 +2046,7 @@ window.storage = storage;
     }, ()=>{});
   }
 
+  // ---------- shared milestone confetti ----------
   function fireConfetti(together){
     const colors = together ? ['#22D3EE','#FF5A5F','#FFFFFF'] : ['#22D3EE','#7FB3D5','#8FCB9B'];
     const count = together ? 36 : 22;
@@ -898,9 +2078,26 @@ window.storage = storage;
     fireConfetti(together);
   }
 
+  // ---------- live "studying now" presence (surfaced on the person chips at the top) ----------
   let liveCache = {};
   let livePollHandle = null;
   let liveTickHandle = null;
+  async function setLiveStatus(patch){
+    if(!me) return;
+    const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
+    liveCache[me.id] = merged;
+    renderPeopleRow(); renderSnapRow();
+    updateFriendTimerCard();
+    try{
+      await setDoc(doc(db, 'liveStatus', me.id), merged, { merge:true });
+    }catch(e){ console.error('live status failed', e); }
+  }
+  async function getLiveStatus(uid){
+    try{
+      const snap = await getDoc(doc(db, 'liveStatus', uid));
+      return snap.exists() ? snap.data() : null;
+    }catch(e){ return null; }
+  }
   async function refreshLiveStatuses(){
     if(!me) return;
     for(const u of usersList){ liveCache[u.id] = await getLiveStatus(u.id); }
@@ -941,9 +2138,25 @@ window.storage = storage;
     if(liveTickHandle){ clearInterval(liveTickHandle); liveTickHandle = null; }
   }
 
+  // ---------- real-time self sync: recover a running timer after reload/crash/offline,
+  // and mirror Start/Pause/Stop across every device signed into the same account ----------
+  let selfLiveUnsub = null;
+  function subscribeSelfLiveStatus(){
+    if(selfLiveUnsub) selfLiveUnsub();
+    selfLiveUnsub = onSnapshot(doc(db, 'liveStatus', me.id), (snap)=>{
+      const st = snap.exists() ? snap.data() : null;
+      liveCache[me.id] = st;
+      reconcileLocalTimerFromRemote(st);
+      renderPeopleRow(); renderSnapRow();
+      updateFriendTimerCard();
+    }, (err)=> console.warn('self live status listener failed', err));
+  }
   function reconcileLocalTimerFromRemote(st){
     if(!st || !me) return;
     if(st.studying && st.startedAt){
+      // Remote says a session is running (could be: this device after a reload, or another
+      // device that just pressed Start/Resume). Adopt it if we aren't already tracking this
+      // exact session locally.
       if(!timerRunning || sessionStartClock !== st.startedAt){
         applyModeUI(st.mode || 'stopwatch');
         if(st.totalMs) countdownTotalMs = st.totalMs;
@@ -953,12 +2166,16 @@ window.storage = storage;
         lastTick = Date.now();
         clearInterval(tickHandle);
         tickHandle = setInterval(tick, 250);
+        if(st.subject) document.getElementById('timerSubject').value = st.subject;
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
         renderTimerDigits();
         updateRunningDeclutter();
       }
     } else {
+      // Remote says nothing is running. If this device still thinks it's running, another
+      // device (or this one, on an earlier tab) paused/stopped/finished it — follow suit
+      // without writing back again (avoids an infinite echo loop).
       if(timerRunning){
         timerRunning = false;
         clearInterval(tickHandle);
@@ -972,6 +2189,7 @@ window.storage = storage;
     }
   }
 
+  // ---------- task comments (reminders / motivation) ----------
   function commentsIdFor(taskId, ownerId){
     return ownerId ? `p_${ownerId}_${taskId}` : `s_${taskId}`;
   }
@@ -1110,13 +2328,6 @@ window.storage = storage;
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
         <div class="field-row">
-          <label>Linked daily target</label>
-          <select id="es-linked">
-            <option value="">Not linked</option>
-            ${blocksForDateIn(state, parseDateKey(dateKey)).map(t=>`<option value="${t.id}" ${session.linkedTaskId===t.id?'selected':''}>${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}
-          </select>
-        </div>
-        <div class="field-row">
           <label>Note</label>
           <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(session.note||'')}</textarea>
         </div>
@@ -1144,16 +2355,9 @@ window.storage = storage;
       const newSubject = backdrop.querySelector('#es-subject').value;
       const newDuration = Math.max(1, parseInt(backdrop.querySelector('#es-duration').value||'1',10));
       const newNote = backdrop.querySelector('#es-note').value.trim();
-      const newLinked = backdrop.querySelector('#es-linked').value || null;
-      const key = dateKey;
+      const key = fmtDate(new Date());
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){
-        s.linkedTaskId = newLinked;
-        s.subject = newLinked ? ((blocksForDateIn(state, parseDateKey(key)).find(t=>t.id===newLinked)||{}).subject || newSubject) : newSubject;
-        s.duration = newDuration;
-        s.note = newNote || null;
-        updateLinkedTaskProgress(key, s.linkedTaskId);
-      }
+      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
       await flushStateNow();
       renderSessions();
       renderGoalCard();
@@ -1162,17 +2366,185 @@ window.storage = storage;
     });
   }
 
-  // ---------- RESTORED WEEK SCREEN (PLAN TAB) ----------
+  // ---------- TODAY SCREEN ----------
+  function renderDayScroller(){
+    const el = document.getElementById('dayScroller');
+    el.innerHTML='';
+    const today = new Date();
+    for(let i=-3;i<=10;i++){
+      const d = new Date(today);
+      d.setDate(today.getDate()+i);
+      const chip = document.createElement('div');
+      chip.className = 'day-chip' + (fmtDate(d)===fmtDate(selectedDate) ? ' active':'');
+      chip.innerHTML = `<div class="dname">${DAY_NAMES[d.getDay()]}</div><div class="dnum">${d.getDate()}</div>`;
+      chip.addEventListener('click', ()=>{ selectedDate = d; render(); });
+      el.appendChild(chip);
+    }
+  }
+  async function renderTaskList(){
+    const el = document.getElementById('taskList');
+    const dateKey = fmtDate(selectedDate);
+    const myBlocks = blocksForDateIn(state, selectedDate);
+    const sharedTasks = await loadSharedTasks(dateKey);
+
+    let html = '';
+
+    // ---- my tasks ----
+    html += `<h3 class="section-title">My tasks</h3>`;
+    if(myBlocks.length===0 && sharedTasks.length===0){
+      html += `<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>tap + to add a task for this day</div>`;
+    } else if(myBlocks.length===0){
+      html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">no tasks of your own yet — tap +</div>`;
+    } else {
+      html += myBlocks.map(b=>{
+        const compKey = dateKey+'|'+b.id;
+        const status = state.completion[compKey]; // undefined | 'done' | 'missed'
+        return `
+          <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+            <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
+            <div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+            <div class="body">
+              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
+              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+              ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
+            </div>
+            <button class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬</button>
+            <button class="task-edit" data-id="${b.id}" data-source="${b.source}" title="Edit">✏️</button>
+            <button class="task-del" data-id="${b.id}" data-source="${b.source}">×</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---- shared "together" tasks ----
+    if(sharedTasks.length){
+      html += `<h3 class="section-title">Doing together</h3>`;
+      html += sharedTasks.map(t=>{
+        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
+        const rowHtml = people.map(p=>{
+          const st = (t.completions||{})[p.id];
+          const mine = p.id===me.id;
+          return `<div class="who-chip ${st||''} ${mine?'mine':''}" data-shared-task="${mine? t.id : ''}" title="${p.name}">
+            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
+            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
+          </div>`;
+        }).join('');
+        return `
+          <div class="task-card shared">
+            <div class="time">${timeColHtml(t.start, t.duration||30)}</div>
+            <div class="body">
+              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
+              <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
+              <div class="who-row">${rowHtml}</div>
+            </div>
+            ${t.createdBy===me.id ? `<button class="task-del" data-shared-del="${t.id}">×</button>` : ''}
+            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---- friends' tasks, read-only ----
+    const friends = usersList.filter(u=>u.id!==me.id);
+    for(const u of friends){
+      await fetchFriendBoard(u.id);
+      const fb = friendCache[u.id] || {};
+      const fBlocks = blocksForDateIn(fb, selectedDate);
+      html += `<h3 class="section-title">${u.name}'s tasks</h3>`;
+      if(fBlocks.length===0){
+        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
+      } else {
+        html += fBlocks.map(b=>{
+          const compKey = dateKey+'|'+b.id;
+          const status = (fb.completion||{})[compKey];
+          return `
+            <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+              <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
+              <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+              <div class="body">
+                <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
+                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${subjectNameIn(b.subject, fb)} · ${b.duration||30} min</div>
+              </div>
+              <button class="cmt-btn" data-cid="${commentsIdFor(b.id, u.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,fb))}">💬</button>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    el.innerHTML = html;
+
+    // ---- handlers: my own tasks ----
+    el.querySelectorAll('.check').forEach(c=>{
+      if(c.style.pointerEvents==='none') return;
+      c.addEventListener('click', ()=>{
+        const k = c.dataset.key;
+        state.completion[k] = nextStatus(state.completion[k]);
+        saveState();
+        renderTaskList();
+        renderWeeklyGoalsList();
+      });
+    });
+    el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id, source = btn.dataset.source;
+        const dateKey = fmtDate(selectedDate);
+        const block = source==='template'
+          ? state.weeklyTemplate.find(b=>b.id===id)
+          : (state.dailyExtra[dateKey]||[]).find(b=>b.id===id);
+        if(block) openAddModal(source==='template' ? 'template' : 'extra', block);
+      });
+    });
+    el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id, source = btn.dataset.source;
+        if(source==='template'){
+          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
+        } else {
+          const key = fmtDate(selectedDate);
+          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
+        }
+        saveState();
+        renderTaskList();
+        renderWeeklyGoalsList();
+      });
+    });
+
+    // ---- handlers: shared "together" task — tick your own status ----
+    el.querySelectorAll('.who-chip[data-shared-task]').forEach(chip=>{
+      const taskId = chip.dataset.sharedTask;
+      if(!taskId) return; // not your own avatar — read only
+      chip.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        const t = list.find(x=>x.id===taskId);
+        if(!t) return;
+        t.completions = t.completions || {};
+        t.completions[me.id] = nextStatus(t.completions[me.id]);
+        await saveSharedTasks(dateKey, list);
+        renderTaskList();
+      });
+    });
+    el.querySelectorAll('.task-del[data-shared-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        await saveSharedTasks(dateKey, list.filter(x=>x.id!==btn.dataset.sharedDel));
+        renderTaskList();
+      });
+    });
+
+    attachCommentButtons(el);
+  }
+
+  // ---------- WEEK SCREEN ----------
   let weekOffset = 0;
   function startOfWeek(date, offsetWeeks){
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    const start = getWeekStartDay();
-    const diff = (d.getDay() - start + 7) % 7;
-    d.setDate(d.getDate() - diff + offsetWeeks*7);
+    d.setDate(d.getDate() - d.getDay() + offsetWeeks*7);
     return d;
   }
 
+  // ---------- weekly goal progress ----------
   function linkedDoneItemsForGoal(data, goalId, weekStart){
     const items = [];
     for(let i=0;i<7;i++){
@@ -1244,18 +2616,17 @@ window.storage = storage;
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const labelEl = document.getElementById('weekNavLabel');
     if(labelEl){
-      labelEl.textContent = weekOffset===0 ? 'This week' : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
-      const sr=document.getElementById('weekStartRange'), er=document.getElementById('weekEndRange');
-      if(sr) sr.textContent=`${DAY_NAMES[weekStart.getDay()]} · ${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}`;
-      if(er) er.textContent=`${DAY_NAMES[weekEnd.getDay()]} · ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
+      labelEl.textContent = weekOffset===0 ? 'This week'
+        : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
     }
+
 
     const wk = weekStartKey(weekStart);
     const flexGoals = (data.weeklyGoals||[]).filter(g=>g.weekStart===wk);
     const groups = recurringGroupsFor(data, weekStart);
 
     if(groups.length===0 && flexGoals.length===0){
-      el.innerHTML = `<div class="wgoal-empty">No weekly targets yet${editable ? ' — tap “+” to add one' : ''}.</div>`;
+      el.innerHTML = `<div class="wgoal-empty">No weekly targets yet${editable ? ' — tap “+ New goal” or “+ Recurring” to add one' : ''}.</div>`;
       return;
     }
 
@@ -1393,11 +2764,6 @@ window.storage = storage;
       });
     });
   }
-  document.getElementById('weekStartPen').addEventListener('click',()=>{
-    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div class="field-row"><label>Choose the first day of your week</label><select id="week-start-select">${DAY_NAMES.map((n,i)=>`<option value="${i}" ${getWeekStartDay()===i?'selected':''}>${n}</option>`).join('')}</select></div><div class="modal-actions"><button class="btn btn-ghost" id="ws-cancel">Cancel</button><button class="btn btn-primary" id="ws-save">Save</button></div></div>`;
-    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.querySelector('#ws-cancel').addEventListener('click',close);backdrop.querySelector('#ws-save').addEventListener('click',()=>{const nextStart=Number(backdrop.querySelector('#week-start-select').value); const oldStart=getWeekStartDay(); migrateWeekStartSetting(oldStart,nextStart); state.weekStartDay=nextStart; saveState();weekOffset=0;openGoalCardId=null;renderWeeklyGoalsList();close();});
-  });
   document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
   document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
 
@@ -1597,6 +2963,7 @@ window.storage = storage;
     else if(currentScreen==='week' && isViewingSelf()) openWeekGoalTypeChooser();
   });
 
+  // ---------- wheel / dial picker (no manual typing) ----------
   const WHEEL_ITEM_H = 40;
   function buildWheelColumn(el, items, initialIndex, onSettle){
     el.innerHTML = `<div class="opt" style="visibility:hidden;"></div>` +
@@ -1628,6 +2995,7 @@ window.storage = storage;
       setIndex(idx){ current = Math.max(0, Math.min(items.length-1, idx)); scrollToIndex(current, false); paintCenter(current); }
     };
   }
+  // time-of-day wheel: returns {getValue():"HH:MM", setFromHHMM(str)}
   function createTimeWheel(container, initialHHMM){
     container.innerHTML = `
       <div class="wheel-picker">
@@ -1641,7 +3009,7 @@ window.storage = storage;
     let [ih, im] = (initialHHMM||'16:00').split(':').map(Number);
     let ampmInit = ih>=12 ? 'PM':'AM';
     let h12 = ih%12; if(h12===0) h12=12;
-    const mIdx = Math.round(im/5) % 12; 
+    const mIdx = Math.round(im/5) % 12; // snap to nearest 5-min mark
     const hours = Array.from({length:12}, (_,i)=> i+1);
     const mins = Array.from({length:12}, (_,i)=> pad(i*5));
     const ampms = ['AM','PM'];
@@ -1657,6 +3025,7 @@ window.storage = storage;
       }
     };
   }
+  // duration stepper (+/- 30 min steps): returns {getValue(): number}
   function createDurationStepper(container, initialMin){
     let durVal = Math.max(30, Math.round((initialMin||30)/30)*30);
     container.innerHTML = `
@@ -1700,7 +3069,7 @@ window.storage = storage;
           <select id="m-subject"></select>
         </div>
 
-        ${!isTemplate ? `
+        ${(!isTemplate && !isEdit) ? `
         <div class="field-row" id="m-link-goal-row">
           <label>Link to weekly goal <span style="opacity:.6; text-transform:none;">(optional, one click)</span></label>
           <select id="m-link-goal"><option value="">— none —</option></select>
@@ -1756,7 +3125,6 @@ window.storage = storage;
       const weekGoals = (state.weeklyGoals||[]).filter(g=>g.weekStart===wk);
       linkGoalSel.innerHTML = '<option value="">— none —</option>' +
         weekGoals.map(g=>`<option value="${g.id}">${escapeHtml(g.title)}</option>`).join('');
-      if(existingBlock && existingBlock.linkedGoalId) linkGoalSel.value = existingBlock.linkedGoalId;
     }
 
     let pickedColor = COLORS[0];
@@ -1816,10 +3184,7 @@ window.storage = storage;
         } else {
           const list = state.dailyExtra[dateKeyForExtra] || [];
           const blk = list.find(b=>b.id===existingBlock.id);
-          if(blk){
-            blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label;
-            if(linkGoalSel) blk.linkedGoalId = linkGoalSel.value || null;
-          }
+          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
         }
         saveState();
         render();
@@ -1842,7 +3207,7 @@ window.storage = storage;
             });
             await saveSharedTasks(dateKey, list);
           }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`, null, 'taskComment');
+          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
         } else {
           selectedDays.forEach(day=>{
             state.weeklyTemplate.push({
@@ -1851,7 +3216,7 @@ window.storage = storage;
             });
           });
           saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`, null, 'taskComment');
+          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
         }
       } else if(together){
         const dateKey = fmtDate(selectedDate);
@@ -1862,7 +3227,7 @@ window.storage = storage;
           completions: {}
         });
         await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`, null, 'taskComment');
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
@@ -1872,18 +3237,16 @@ window.storage = storage;
           linkedGoalId: linkGoalId
         });
         saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`, null, 'taskComment');
+        notifyOthers(`${me.name} added a task: ${taskName}`);
       }
       render();
       close();
     });
   }
 
-  function renderFocusPresetNames() { }
-
+  // ---------- master render ----------
   function render(){
     renderPeopleRow(); renderSnapRow();
-    renderLiveGroupPanel();
 
     const banner = document.getElementById('viewingBanner');
     if(currentScreen==='week' && !isViewingSelf()){
@@ -1902,7 +3265,7 @@ window.storage = storage;
     updateFriendTimerCard();
     renderGoalCard();
 
-    renderTimerTaskLink();
+    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
     renderSessions();
     renderDayScroller();
     renderTaskList();
@@ -1921,7 +3284,7 @@ window.storage = storage;
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   // ---------- study-hours chart (Analyse screen) ----------
-  let chartRange = 'week'; 
+  let chartRange = 'week'; // 'week' | 'fortnight' | 'month'
   document.getElementById('chartRangeToggle').querySelectorAll('button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       chartRange = btn.dataset.range;
@@ -2206,5 +3569,329 @@ window.storage = storage;
       loadMoreHistoryDays();
     }
   });
+})();
 
+
+/* ---------- Studyboard UI vNext overrides ---------- */
+(function(){
+  const V = { groupMoved:false, peopleWrapped:false, customMinutes:60 };
+
+  function ensurePeopleToggle(){
+    const row=document.getElementById('peopleRow');
+    if(!row || V.peopleWrapped) return;
+    const wrap=document.createElement('div');
+    wrap.className='people-row-wrap-vnext';
+    row.parentNode.insertBefore(wrap,row);
+    wrap.appendChild(row);
+    const btn=document.createElement('button');
+    btn.className='people-collapse-btn'; btn.id='peopleCollapseBtn'; btn.type='button'; btn.title='Collapse people row'; btn.textContent='‹';
+    wrap.appendChild(btn);
+    const key='sb-people-collapsed';
+    const setCollapsed=(yes)=>{wrap.classList.toggle('collapsed',yes);btn.textContent=yes?'›':'‹';btn.title=yes?'Expand people row':'Collapse people row';localStorage.setItem(key,yes?'1':'0');};
+    btn.addEventListener('click',()=>setCollapsed(!wrap.classList.contains('collapsed')));
+    setCollapsed(localStorage.getItem(key)==='1');
+    V.peopleWrapped=true;
+  }
+
+  function moveGroupBarToLive(){
+    const bar=document.querySelector('.group-bar');
+    const live=document.getElementById('screen-live');
+    if(!bar||!live||V.groupMoved) return;
+    live.insertBefore(bar,live.firstChild);
+    V.groupMoved=true;
+  }
+
+  function syncProfileAndGroupVisibility(){
+    ensurePeopleToggle(); moveGroupBarToLive();
+    const wrap=document.querySelector('.people-row-wrap-vnext');
+    if(wrap) wrap.style.display=(currentScreen==='timer'||currentScreen==='today'||currentScreen==='week')?'flex':'none';
+    const bar=document.querySelector('#screen-live .group-bar');
+    if(bar) bar.style.display=currentScreen==='live'?'flex':'none';
+  }
+
+  function setupNowMarkup(){
+    const wrap=document.getElementById('timerControlsWrap');
+    const timerRing=document.querySelector('.timer-ring-wrap');
+    if(!wrap||!timerRing) return;
+    timerRing.classList.add('timer-ring-wrap-vnext');
+    const subject=document.getElementById('timerSubject');
+    if(subject) subject.parentElement.style.display='none';
+    const ms=document.getElementById('modeStopwatch'); const mc=document.getElementById('modeCountdown');
+    if(ms) ms.textContent='Stopwatch'; if(mc) mc.textContent='Focus Timer';
+    const row=document.getElementById('countdownLenChips');
+    if(row && !row.dataset.vnext){
+      row.dataset.vnext='1';
+      row.innerHTML = `
+        <div class="dur-chip sel" data-min="30"><span class="dur-min">30 min</span></div>
+        <div class="dur-chip" data-min="60"><span class="dur-min">1 hour</span></div>
+        <div class="dur-chip custom-chip" data-custom="1"><span class="dur-min">Custom</span></div>`;
+      row.querySelectorAll('.dur-chip').forEach(ch=>{
+        ch.addEventListener('click',()=>{
+          if(timerRunning) return;
+          if(ch.dataset.custom){ openVNextCustomDuration(); return; }
+          row.querySelectorAll('.dur-chip').forEach(x=>x.classList.remove('sel')); ch.classList.add('sel');
+          countdownTotalMs=parseInt(ch.dataset.min,10)*60000; renderTimerDigits(); renderRing();
+        });
+      });
+    }
+    const rename=document.getElementById('renamePresetsBtn'); if(rename) rename.style.display='none';
+    const ctl=document.querySelector('.timer-controls');
+    if(ctl && !ctl.classList.contains('timer-controls-vnext')){
+      ctl.classList.add('timer-controls-vnext');
+      const link=document.createElement('button');
+      link.id='linkedTargetBtn'; link.className='link-target-btn'; link.type='button'; link.title='Link today\'s daily target'; link.textContent='📌';
+      ctl.insertBefore(link, document.getElementById('startBtn'));
+      link.addEventListener('click',openVNextLinkTarget);
+    }
+    const focus=document.getElementById('focusToggleBtn');
+    if(focus && !focus.classList.contains('focus-pill-vnext')){
+      focus.classList.add('focus-pill-vnext'); focus.textContent='🧘 Focus'; focus.title='Enter focus mode';
+      timerRing.appendChild(focus);
+    }
+    // add an empty compact label below linked button
+    if(!document.getElementById('linkedTargetLabel')){
+      const label=document.createElement('div'); label.id='linkedTargetLabel'; label.className='vnext-link-label'; timerRing.appendChild(label);
+    }
+  }
+
+  function syncNowControls(){
+    const wrap=document.getElementById('timerControlsWrap');
+    if(!wrap) return;
+    const committed=timerRunning || elapsedMs>0;
+    wrap.classList.toggle('vnext-committed',committed);
+    const link=document.getElementById('linkedTargetBtn');
+    const focus=document.getElementById('focusToggleBtn');
+    const focusOn=document.body.classList.contains('focus-active');
+    if(link){ link.classList.toggle('active',committed && !focusOn); link.classList.toggle('linked',!!window.__vnextLinkedTaskId); link.style.display=(committed&&!focusOn)?'flex':'none'; }
+    if(focus){ focus.classList.toggle('visible',committed&&!focusOn); }
+    const label=document.getElementById('linkedTargetLabel');
+    if(label){ label.textContent=window.__vnextLinkedTaskLabel ? `🔗 ${window.__vnextLinkedTaskLabel}` : ''; }
+  }
+
+  async function openVNextCustomDuration(){
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Custom focus time</h3>
+      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:10px;">Scroll hours and minutes</div>
+      <div class="custom-time-grid"><div><div class="modal-subhead">Hour</div><div id="v-h"></div></div><div><div class="modal-subhead">Minute</div><div id="v-m"></div></div></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="v-cancel">Cancel</button><button class="btn btn-primary" id="v-save">Use time</button></div></div>`;
+    document.body.appendChild(backdrop);
+    const h=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+    const m=[0,5,10,15,20,25,30,35,40,45,50,55].map(i=>String(i).padStart(2,'0'));
+    const curH=Math.floor(V.customMinutes/60), curM=V.customMinutes%60, mi=Math.min(11,Math.round(curM/5));
+    const wh=createTimeWheel(backdrop.querySelector('#v-h'),String(curH).padStart(2,'0')+':00');
+    // createTimeWheel is HH:MM oriented, use a lightweight local wheel for minutes.
+    function simpleWheel(el,items,idx){
+      el.innerHTML=`<div class="wheel-picker">${items.map(v=>`<div class="opt">${v}</div>`).join('')}</div>`;
+      const w=el.firstElementChild; const paint=()=>{const i=Math.max(0,Math.min(items.length-1,Math.round(w.scrollTop/40)));w.querySelectorAll('.opt').forEach((o,j)=>o.classList.toggle('center',j===i));return i;};
+      w.addEventListener('scroll',()=>requestAnimationFrame(paint)); w.scrollTop=idx*40; paint(); return {get value(){return items[paint()];}};
+    }
+    const wh2=simpleWheel(backdrop.querySelector('#v-h'),h,curH);
+    const wm=simpleWheel(backdrop.querySelector('#v-m'),m,mi);
+    function close(){backdrop.remove();}
+    backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-cancel').onclick=close;
+    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#v-save').onclick=()=>{ const hh=parseInt(wh2.value,10)||0; const mm=parseInt(wm.value,10)||0; if(hh===0&&mm===0){alert('Choose more than 0 minutes.');return;} V.customMinutes=hh*60+mm; countdownTotalMs=V.customMinutes*60000; backdrop.remove(); applyModeUI('countdown'); document.querySelectorAll('#countdownLenChips .dur-chip').forEach(x=>x.classList.remove('sel')); const c=document.querySelector('#countdownLenChips .custom-chip'); if(c)c.classList.add('sel'); renderTimerDigits(); };
+  }
+
+  function todayTaskOptions(){
+    const d=new Date(); const dateKey=fmtDate(d); const blocks=blocksForDateIn(state,d); return blocks.map(b=>({id:b.id,label:b.label||subjectNameIn(b.subject,state),duration:b.duration||30,subject:b.subject,dateKey}));
+  }
+
+  function openVNextLinkTarget(){
+    const tasks=todayTaskOptions();
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link daily target</h3>
+      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">The task duration becomes the focus duration automatically.</div>
+      <div id="v-task-list">${tasks.length?tasks.map(t=>`<button class="btn btn-ghost v-task-pick" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;"><b>${escapeHtml(t.label)}</b><br><span style="font-size:10px;color:var(--chalk-faint)">${t.duration} min · ${escapeHtml(subjectNameIn(t.subject,state))}</span></button>`).join(''):'<div style="font-size:12px;color:var(--chalk-faint);padding:10px 0;">No daily tasks for today.</div>'}</div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="v-unlink">Unlink</button><button class="btn btn-ghost" id="v-close">Close</button></div></div>`;
+    document.body.appendChild(backdrop);
+    function close(){backdrop.remove();} backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-close').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelectorAll('.v-task-pick').forEach(btn=>btn.addEventListener('click',()=>{
+      const t=tasks.find(x=>x.id===btn.dataset.id); if(!t)return;
+      window.__vnextLinkedTaskId=t.id; window.__vnextLinkedTaskLabel=t.label; window.__vnextLinkedTaskDuration=t.duration; window.__vnextLinkedTaskDate=t.dateKey;
+      countdownTotalMs=t.duration*60000;
+      if(timerRunning && timerMode==='countdown' && elapsedMs>=countdownTotalMs){ elapsedMs=countdownTotalMs; finishSession(true); }
+      else { renderTimerDigits(); syncNowControls(); }
+      close();
+    }));
+    backdrop.querySelector('#v-unlink').onclick=()=>{window.__vnextLinkedTaskId=null;window.__vnextLinkedTaskLabel='';window.__vnextLinkedTaskDuration=null;window.__vnextLinkedTaskDate=null;syncNowControls();close();};
+  }
+
+  // Track linked-session metadata around the existing finishSession implementation.
+  const __vnextOriginalFinish = finishSession;
+  finishSession = function(completed, reason){
+    const beforeKey=fmtDate(new Date(sessionStartClock||Date.now()));
+    const beforeLen=((state.sessions[beforeKey]||[]).length);
+    __vnextOriginalFinish(completed, reason);
+    const list=state.sessions[beforeKey]||[];
+    if(window.__vnextLinkedTaskId && list.length>beforeLen){
+      const s=list[list.length-1];
+      s.linkedTaskId=window.__vnextLinkedTaskId;
+      s.linkedTaskDate=window.__vnextLinkedTaskDate||beforeKey;
+      s.linkedTaskDuration=window.__vnextLinkedTaskDuration||null;
+      saveState();
+    }
+    window.__vnextLinkedTaskId=null; window.__vnextLinkedTaskLabel=''; window.__vnextLinkedTaskDuration=null; window.__vnextLinkedTaskDate=null; syncNowControls();
+  };
+
+  // Override the edit-session modal so linking is available there.
+  openEditSessionModal = function(session,dateKey){
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    const tasks=blocksForDateIn(state,new Date(dateKey+'T12:00:00'));
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit session</h3>
+      <div class="field-row"><label>Subject</label><select id="es-subject"></select></div>
+      <div class="field-row"><label>Duration (minutes)</label><input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}"></div>
+      <div class="field-row"><label>Linked daily target</label><select id="es-link"><option value="">— none —</option>${tasks.map(t=>`<option value="${t.id}">${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}</select></div>
+      <div class="field-row"><label>Note</label><textarea id="es-note" rows="2" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;">${escapeHtml(session.note||'')}</textarea></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button><button class="btn btn-primary" id="es-save">Save</button></div></div>`;
+    document.body.appendChild(backdrop); renderSubjectOptions(backdrop.querySelector('#es-subject'),session.subject); const link=backdrop.querySelector('#es-link'); if(session.linkedTaskId) link.value=session.linkedTaskId;
+    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#es-save').onclick=()=>{ const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(!s)return; s.subject=backdrop.querySelector('#es-subject').value; s.duration=Math.max(1,parseFloat(backdrop.querySelector('#es-duration').value)||1); s.note=backdrop.querySelector('#es-note').value.trim(); s.linkedTaskId=link.value||null; s.linkedTaskDate=link.value?dateKey:null; s.linkedTaskDuration=link.value?(tasks.find(t=>t.id===link.value)?.duration||null):null; saveState(); renderSessions(); renderTaskList(); close(); };
+    backdrop.querySelector('#es-delete').onclick=()=>{state.sessions[dateKey]=(state.sessions[dateKey]||[]).filter(s=>s.id!==session.id);saveState();renderSessions();renderTaskList();close();};
+  };
+
+  function linkedProgressFor(data,dateKey,taskId){
+    return ((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
+  }
+
+  function taskActionMenu(anchor, task, source, dateKey){
+    document.querySelectorAll('.task-menu-vnext').forEach(x=>x.remove());
+    const menu=document.createElement('div'); menu.className='task-menu-vnext';
+    menu.innerHTML=`<button data-act="edit">✏️ Edit</button><button data-act="comment">💬 Comment</button><button data-act="delete" style="color:var(--c1);">🗑 Delete</button>`;
+    document.body.appendChild(menu); const r=anchor.getBoundingClientRect(); menu.style.left=Math.min(window.innerWidth-140,Math.max(8,r.right-138))+'px'; menu.style.top=Math.min(window.innerHeight-150,r.bottom+6)+'px';
+    const close=()=>menu.remove(); menu.querySelector('[data-act=edit]').onclick=()=>{close(); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===task.id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===task.id); if(block) openAddModal(source==='template'?'template':'extra',block,dateKey);};
+    menu.querySelector('[data-act=comment]').onclick=()=>{close(); openCommentsModal(commentsIdFor(task.id,me.id),task.label||subjectNameIn(task.subject,state));};
+    menu.querySelector('[data-act=delete]').onclick=()=>{close(); if(!confirm('Delete this task?'))return; if(source==='template') state.weeklyTemplate=state.weeklyTemplate.filter(b=>b.id!==task.id); else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(b=>b.id!==task.id); saveState(); renderTaskList(); renderWeeklyGoalsList();};
+    setTimeout(()=>document.addEventListener('click',close,{once:true,capture:true}),0);
+  }
+
+  renderTaskList = async function(){
+    const el=document.getElementById('taskList'); if(!el||!me)return;
+    const dateKey=fmtDate(selectedDate); const data=activeData(); const editable=isViewingSelf();
+    if(!editable) await fetchFriendBoard(viewingId);
+    const liveData=editable?state:(friendCache[viewingId]||data);
+    const blocks=blocksForDateIn(liveData,selectedDate);
+    const name=editable?'My tasks':((usersList.find(u=>u.id===viewingId)||{}).name||'Their')+"'s tasks";
+    if(!blocks.length){el.innerHTML=`<h3 class="section-title">${escapeHtml(name)}</h3><div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${editable?'tap + to add a task for this day':''}</div>`;return;}
+    let html=`<h3 class="section-title">${escapeHtml(name)}</h3>`;
+    blocks.forEach(b=>{
+      const compKey=dateKey+'|'+b.id; let status=(liveData.completion||{})[compKey]; const logged=linkedProgressFor(liveData,dateKey,b.id); const dur=b.duration||30; const pct=status==='done'?100:Math.min(100,Math.round((logged/dur)*100));
+      if(editable && pct>=100 && status!=='done'){ state.completion[compKey]='done'; status='done'; }
+      html+=`<div class="task-progress-card ${status==='done'?'done':''}" style="--task-pct:${pct}%;"><div class="task-progress-inner">
+        <div class="time">${timeColHtml(b.start,dur)}</div><div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':''}</div>
+        <div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,liveData))}</div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,liveData)}"></span>${escapeHtml(subjectNameIn(b.subject,liveData))} · ${dur} min</div><div class="progress-note">${Math.min(dur,Math.round(logged*10)/10)} / ${dur} min · ${pct}%${b.linkedGoalId?` · 🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,liveData))}`:''}</div></div>
+        ${editable?`<button class="task-more" data-task-id="${b.id}" data-source="${b.source}" title="More">⋯</button>`:''}
+      </div></div>`;
+    });
+    el.innerHTML=html;
+    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{const k=c.dataset.key;state.completion[k]=nextStatus(state.completion[k]);saveState();renderTaskList();renderWeeklyGoalsList();}));
+    el.querySelectorAll('.task-more').forEach(btn=>{const task=blocks.find(b=>b.id===btn.dataset.taskId);btn.addEventListener('click',e=>{e.stopPropagation();taskActionMenu(btn,task,btn.dataset.source,dateKey);});});
+    if(editable) saveState();
+  };
+
+  // Weekly start-day preference and improved range label.
+  startOfWeek = function(date,offsetWeeks){
+    const d=new Date(date); d.setHours(0,0,0,0); const startDay=Number.isInteger(state.weekStartDay)?state.weekStartDay:0; const delta=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-delta+(offsetWeeks||0)*7); return d;
+  };
+
+  function ensureWeekNavVNext(){
+    const nav=document.getElementById('weekNav'); if(!nav||nav.dataset.vnext)return; nav.dataset.vnext='1';
+    const arrowPrev=document.getElementById('weekPrev'), arrowNext=document.getElementById('weekNext'), label=document.getElementById('weekNavLabel');
+    nav.classList.add('week-nav-vnext');
+    const wrap=document.createElement('div'); wrap.className='week-center-wrap'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.flex='1'; wrap.style.gap='6px';
+    const center=document.createElement('div'); center.className='week-center'; center.id='weekVCenter';
+    const edit=document.createElement('button'); edit.className='week-start-btn'; edit.id='weekStartEdit'; edit.textContent='✎'; edit.title='Choose week start';
+    label.replaceWith(wrap); wrap.appendChild(center); wrap.appendChild(edit);
+    edit.onclick=openWeekStartPicker;
+  }
+  function openWeekStartPicker(){
+    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">Choose which day starts your weekly targets.</div><div class="day-toggle-row">${DAY_NAMES.map((n,i)=>`<button class="day-toggle" data-d="${i}">${n}</button>`).join('')}</div><div class="modal-actions"><button class="btn btn-ghost" id="wsc">Cancel</button><button class="btn btn-primary" id="wss">Save</button></div></div>`;document.body.appendChild(backdrop);backdrop.querySelectorAll('.day-toggle').forEach(b=>{if(Number(b.dataset.d)===(Number.isInteger(state.weekStartDay)?state.weekStartDay:0))b.classList.add('sel');b.onclick=()=>{backdrop.querySelectorAll('.day-toggle').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};});const close=()=>backdrop.remove();backdrop.querySelector('.close-x').onclick=close;backdrop.querySelector('#wsc').onclick=close;backdrop.querySelector('#wss').onclick=()=>{state.weekStartDay=Number(backdrop.querySelector('.day-toggle.sel')?.dataset.d||0);saveState();weekOffset=0;renderWeeklyGoalsList();close();};
+  }
+
+  const __vnextOriginalWeeklyGoals=renderWeeklyGoalsList;
+  renderWeeklyGoalsList=function(){
+    ensureWeekNavVNext(); __vnextOriginalWeeklyGoals();
+    const start=startOfWeek(new Date(),weekOffset), end=new Date(start); end.setDate(end.getDate()+6); const center=document.getElementById('weekVCenter');
+    if(center){ const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; center.innerHTML=`<span style="font-size:10px;color:var(--chalk-faint)">${M[start.getMonth()]} ${start.getDate()}</span><div style="font-family:'Kalam';font-size:15px;color:var(--chalk)">${weekOffset===0?'This week':'Week'}</div><span style="font-size:10px;color:var(--chalk-faint)">${M[end.getMonth()]} ${end.getDate()}</span>`; }
+  };
+
+  function updateHeaderTitle(){ const t=document.getElementById('headerTitle'), s=document.getElementById('headerSub'); if(t&&currentScreen==='timer'){t.textContent='Study Board';} if(s&&currentScreen==='timer'){s.textContent='stay on the clock';} }
+
+  const __vnextOriginalRender=render;
+  render=function(){
+    setupNowMarkup(); syncProfileAndGroupVisibility(); __vnextOriginalRender(); setupNowMarkup(); syncNowControls(); updateHeaderTitle();
+  };
+
+  // Make focus button react to focus-state changes.
+  const __vnextFocusClassObserver=new MutationObserver(()=>syncNowControls());
+  __vnextFocusClassObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
+
+  // Keep Daily progress fresh while a linked session is running.
+  setInterval(()=>{ if(timerRunning && window.__vnextLinkedTaskId && currentScreen==='today') renderTaskList(); },15000);
+
+
+  // ---------- vNext LIVE-only group menu ----------
+  const __vnextOriginalRenderGroupBar = renderGroupBar;
+  renderGroupBar = function(){
+    __vnextOriginalRenderGroupBar();
+    const bar=document.querySelector('#screen-live .group-bar');
+    const main=document.getElementById('groupBar');
+    if(!bar||!main||!activeGroupData)return;
+    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
+    const label=main.querySelector('#groupBarLabel');
+    if(label && hidden) label.innerHTML=`<span style="font-weight:700">${escapeHtml(me?.name||'You')}</span><span class="group-vnext-actions-note"> · group hidden</span>`;
+    const snap=document.getElementById('snapRow');
+    if(snap && currentScreen==='live') snap.style.display=hidden?'none':'';
+  };
+
+  function vNextGroupModal(content, mountId='vgrp-modal'){
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal" id="${mountId}">${content}</div>`; document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x')?.addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    return {backdrop,body:backdrop.querySelector('#'+mountId),close};
+  }
+
+  const __vnextOriginalGroupsModal = openGroupsModal;
+  function openVNextGroupMenu(){
+    if(!activeGroupData){ __vnextOriginalGroupsModal(); return; }
+    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
+    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>${escapeHtml(activeGroupData.name)}</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">${Object.keys(activeGroupData.members||{}).length} members</div>
+      <div class="group-vnext-actions"><button class="btn btn-ghost" id="vgrp-edit">✏️ Edit</button><button class="btn btn-ghost" id="vgrp-share">↗ Share</button><button class="btn btn-ghost" id="vgrp-hide">${hidden?'◉ Show':'◌ Hide'} people</button><button class="btn btn-primary" id="vgrp-switch">⇄ Switch / Create</button></div>`);
+    ui.body.querySelector('#vgrp-edit').onclick=()=>{ui.close();openVNextGroupEdit(activeGroupId);};
+    ui.body.querySelector('#vgrp-share').onclick=()=>{ui.close();openVNextGroupShare(activeGroupId);};
+    ui.body.querySelector('#vgrp-hide').onclick=()=>{localStorage.setItem('sb-live-group-hidden-'+activeGroupId,hidden?'0':'1');renderGroupBar();renderSnapRow();};
+    ui.body.querySelector('#vgrp-switch').onclick=()=>{ui.close();openGroupsModal();};
+  }
+
+  async function fetchGroupFresh(groupId){try{const snap=await getDoc(doc(db,'groups',groupId));return snap.exists()?snap.data():null;}catch(e){return null;}}
+  async function openVNextGroupEdit(groupId){
+    const g=await fetchGroupFresh(groupId); if(!g)return;
+    const owner=g.ownerId===me.id; const d=g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):'';
+    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Edit group</h3>
+      <div class="field-row"><label>Group name</label><input id="ve-name" value="${escapeHtml(g.name||'')}"></div>
+      <div class="field-row"><label>Daily target (hours)</label><input id="ve-daily" type="number" min="0" step="0.5" value="${g.dailyGoalHours||0}"></div>
+      <div class="field-row"><label>Weekly target (hours)</label><input id="ve-weekly" type="number" min="0" step="0.5" value="${g.weeklyGoalHours||0}"></div>
+      <div class="field-row"><label>Deadline</label><input id="ve-deadline" type="date" value="${d}"></div>
+      <h4 style="font-family:'Kalam';font-weight:400;margin:14px 0 6px">Members</h4><div id="ve-members"></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="ve-cancel">Cancel</button>${owner?'<button class="btn btn-danger" id="ve-delete">Delete group</button>':''}<button class="btn btn-primary" id="ve-save">Save</button></div>`);
+    const members=ui.body.querySelector('#ve-members'); members.innerHTML=Object.keys(g.members||{}).map(uid=>{const pp=profileFor(uid);return `<div class="group-member-row-vnext"><span>${escapeHtml(pp.name)}${uid===g.ownerId?' 👑':''}</span>${owner&&uid!==me.id?`<button class="task-del" data-rm="${uid}">×</button>`:''}</div>`}).join('');
+    members.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{await removeMemberFromGroup(groupId,b.dataset.rm);openVNextGroupEdit(groupId);ui.close();});
+    ui.body.querySelector('#ve-cancel').onclick=ui.close;
+    ui.body.querySelector('#ve-save').onclick=async()=>{const name=ui.body.querySelector('#ve-name').value.trim();if(!name)return alert('Give the group a name.');const ds=ui.body.querySelector('#ve-deadline').value;const deadlineAt=ds?new Date(ds+'T23:59:59').getTime():null;await setDoc(doc(db,'groups',groupId),{name,dailyGoalHours:parseFloat(ui.body.querySelector('#ve-daily').value)||0,weeklyGoalHours:parseFloat(ui.body.querySelector('#ve-weekly').value)||0,deadlineAt},{merge:true});activeGroupData=await fetchGroupFresh(groupId);renderGroupBar();ui.close();};
+    ui.body.querySelector('#ve-delete')?.addEventListener('click',async()=>{if(!confirm('Delete this group? This cannot be undone.'))return;await deleteDoc(doc(db,'groups',groupId));myGroupIds=myGroupIds.filter(x=>x!==groupId);activeGroupId=myGroupIds[0]||null;activeGroupData=activeGroupId?await fetchGroupFresh(activeGroupId):null;await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});ui.close();render();});
+  }
+
+  async function openVNextGroupShare(groupId){
+    const g=await fetchGroupFresh(groupId);if(!g)return;const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;const qr='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
+    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase">Access code</div><div class="code">${g.inviteCode}</div><img src="${qr}" alt="QR code" style="max-width:180px;border-radius:12px;background:white;padding:8px"><button class="btn btn-primary" id="vs-copy" style="width:100%;margin-top:8px">Copy invite link</button></div>`);
+    ui.body.querySelector('#vs-copy').onclick=async()=>{try{await navigator.clipboard.writeText(inviteUrl);}catch(e){}const b=ui.body.querySelector('#vs-copy');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy invite link',1000);};
+  }
+
+  openGroupsModal = function(){ openVNextGroupMenu(); };
+
+  // Initial state: preserve 30-minute default and hide group row except in Live.
+  if(!state.weekStartDay && state.weekStartDay!==0) state.weekStartDay=0;
+  if(typeof state.focusPresetNames==='undefined') state.focusPresetNames=[];
+  applyModeUI(timerMode); countdownTotalMs=30*60000; V.customMinutes=30; renderTimerDigits();
+  setTimeout(()=>{setupNowMarkup();syncProfileAndGroupVisibility();syncNowControls();renderWeeklyGoalsList();},0);
 })();
