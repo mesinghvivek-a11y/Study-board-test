@@ -880,8 +880,7 @@
   .cmt-item{ font-size:13px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
   .cmt-item b{ color:var(--accent); }
 
-
-
+/* ===== SOURCE vNext CSS ===== */
 /* ---------- vNext minimal UI ---------- */
 .group-bar-vnext-note{font-size:10px;color:var(--chalk-faint);margin-top:2px}
 .people-row-wrap-vnext{display:flex;align-items:center;gap:5px;margin:0 0 12px}
