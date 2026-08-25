@@ -1,5 +1,4 @@
-
-  :root{
+:root{
     --board:#151821;
     --board-2:#1A1E29;
     --card:#222634;
@@ -882,7 +881,6 @@
   .cmt-item b{ color:var(--accent); }
 
 
-/* ---- source combined application CSS block ---- */
 
 /* ---------- vNext minimal UI ---------- */
 .group-bar-vnext-note{font-size:10px;color:var(--chalk-faint);margin-top:2px}
