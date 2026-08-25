@@ -27,16 +27,6 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 const rtdb = getDatabase(fbApp);
-
-// NOTE: intentionally NOT calling enableIndexedDbPersistence() here. Safari/WebKit's
-// IndexedDB (which is what every iPhone, iPad, and home-screen PWA on this project
-// runs on) has a long history of serious, still-open bugs: queued writes that are
-// silently dropped and never sent after the tab is backgrounded, the DB refusing to
-// open at all citing "potential corruption" (iOS 18, reported May 2025), and Safari's
-// 7-day-inactivity storage wipe (ITP) clearing any not-yet-synced local queue outright.
-// Relying on that cache as a safety net was a bigger data-loss risk on this platform
-// mix than just failing visibly when offline — see below.
-
 // ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
 if('serviceWorker' in navigator){
@@ -430,25 +420,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(document.visibilityState==='hidden' && me) flushStateNow();
   });
 
-  
-
-// ---------- auth: login / sign up / logout ----------
+  // ---------- auth: login / sign up / logout ----------
   let booted = false;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
   const authError = document.getElementById('authError');
-  
-  function showAuth(){
-    authScreen.style.display = 'flex';
-    appRoot.style.display = 'none';
-  }
-  function showApp(){
-    authScreen.style.display = 'none';
-    appRoot.style.display = 'flex';
-  }
+
+  function showAuth(){ authScreen.style.display='flex'; appRoot.style.display='none'; }
+  function showApp(){ authScreen.style.display='none'; appRoot.style.display='flex'; }
   function setAuthError(msg){ authError.textContent = msg || ''; }
 
-  let authMode = 'login';
+  let authMode='login';
   document.getElementById('authToggle').addEventListener('click', ()=>{
     authMode = authMode==='login' ? 'signup' : 'login';
     document.getElementById('nameRow').style.display = authMode==='signup' ? 'block' : 'none';
@@ -458,113 +440,84 @@ window.storage = storage; // keep the rest of the app's code unchanged
     setAuthError('');
   });
 
-  // GOOGLE SIGN IN LOGIC
   document.getElementById('googleAuthBtn').addEventListener('click', async (e)=>{
-    e.preventDefault(); // PREVENTS PAGE RELOAD
-    setAuthError('');
-    document.getElementById('googleAuthBtn').disabled = true;
-    try {
-      const provider = new GoogleAuthProvider();
+    e.preventDefault(); setAuthError('');
+    const btn=document.getElementById('googleAuthBtn'); btn.disabled=true;
+    try{
+      const provider=new GoogleAuthProvider();
       await signInWithRedirect(auth, provider);
-    } catch(e) {
-      setAuthError(e.message || 'Google sign-in failed.');
-      document.getElementById('googleAuthBtn').disabled = false;
+    }catch(e){
+      setAuthError(e.message || 'Google sign-in failed.'); btn.disabled=false;
     }
   });
 
-  // SAFE GOOGLE REDIRECT HANDLER (Contained within scope)
-  getRedirectResult(auth).then(async (result) => {
-    if (result && result.user && !booted) {
-      booted = true;
-      window.__meId = result.user.uid;
-      try {
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { 
-          id: result.user.uid, 
-          name: result.user.displayName || 'Student', 
-          color: COLORS[0], 
-          photo: result.user.photoURL || null 
-        };
-      } catch(err) {
-        me = { id: result.user.uid, name: result.user.displayName || 'Student', color: COLORS[0], photo: result.user.photoURL || null };
+  getRedirectResult(auth).then(async(result)=>{
+    if(result && result.user && !booted){
+      booted=true; window.__meId=result.user.uid;
+      try{
+        const res=await window.storage.get('study-board-profile', false);
+        me=res && res.value ? JSON.parse(res.value) : {id:result.user.uid,name:result.user.displayName||'Student',color:COLORS[0],photo:result.user.photoURL||null};
+      }catch(err){
+        me={id:result.user.uid,name:result.user.displayName||'Student',color:COLORS[0],photo:result.user.photoURL||null};
       }
-      showApp();
-      await loadState();
+      showApp(); await loadState();
     }
-  }).catch((e) => {
-    if (e && e.code !== 'auth/redirect-cancelled-by-user') {
-      setAuthError(e.message || 'Google sign-in redirect failed.');
-    }
+  }).catch((e)=>{
+    if(e && e.code!=='auth/redirect-cancelled-by-user') setAuthError(e.message || 'Google sign-in redirect failed.');
   });
 
-  // EMAIL & PASSWORD LOGIN LOGIC
-  document.getElementById('authSubmit').addEventListener('click', async (e)=>{
-    e.preventDefault(); // PREVENTS INSTANT PAGE RELOAD
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    const name = document.getElementById('authName').value.trim();
+  document.getElementById('authSubmit').addEventListener('click', async(e)=>{
+    e.preventDefault();
+    const email=document.getElementById('authEmail').value.trim();
+    const password=document.getElementById('authPassword').value;
+    const name=document.getElementById('authName').value.trim();
     setAuthError('');
-    
-    if(!email || !password){ setAuthError('Enter an email and password.'); return; }
-    if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
-
-    document.getElementById('authSubmit').disabled = true;
-    booted = true; // PREVENTS DOUBLE LOADING RACE CONDITION
-
+    if(!email||!password){setAuthError('Enter an email and password.');return;}
+    if(authMode==='signup'&&!name){setAuthError('Enter your name.');return;}
+    document.getElementById('authSubmit').disabled=true; booted=true;
     try{
       if(authMode==='signup'){
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        window.__meId = cred.user.uid;
-        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
-        await window.storage.set('study-board-profile', JSON.stringify(me), false);
-        await registerUser(me);
-        showApp();
-        await loadState();
-      } else {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        window.__meId = cred.user.uid;
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-        showApp();
-        await loadState();
+        const cred=await createUserWithEmailAndPassword(auth,email,password);
+        window.__meId=cred.user.uid;
+        me={id:cred.user.uid,name,color:COLORS[Math.floor(Math.random()*COLORS.length)]};
+        await window.storage.set('study-board-profile',JSON.stringify(me),false);
+        if(typeof registerUser==='function') await registerUser(me);
+        showApp(); await loadState();
+      }else{
+        const cred=await signInWithEmailAndPassword(auth,email,password);
+        window.__meId=cred.user.uid;
+        const res=await window.storage.get('study-board-profile',false);
+        me=res&&res.value ? JSON.parse(res.value) : {id:cred.user.uid,name:'Student',color:COLORS[0]};
+        showApp(); await loadState();
       }
-    }catch (e) {
-      booted = false; // RELEASES THE LOCK IF LOGIN FAILS
-      let readableMessage = "An error occurred during authentication.";
-      if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
-        readableMessage = "Incorrect password or email address.";
-      } else if(e.code === 'auth/user-not-found'){
-        readableMessage = "No account found with that email.";
-      } else if(e.code === 'auth/invalid-email'){
-        readableMessage = "Please enter a valid email address.";
-      } else {
-        readableMessage = e.message || "Something went wrong.";
-      }
-      setAuthError(readableMessage);
+    }catch(e){
+      booted=false;
+      let msg=e.message || 'Something went wrong.';
+      if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential') msg='Incorrect password or email address.';
+      else if(e.code==='auth/user-not-found') msg='No account found with that email.';
+      else if(e.code==='auth/invalid-email') msg='Please enter a valid email address.';
+      setAuthError(msg);
     }
-    document.getElementById('authSubmit').disabled = false;
+    document.getElementById('authSubmit').disabled=false;
   });
 
-async function doLogout(){
-    // stop any active timer/session cleanly so it never appears "studying" after logout,
-    // and make sure that save actually lands before we sign out (no debounce race)
-    exitFocusMode();
-    if(timerRunning){
-      if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
-    }
-    await flushStateNow();
-    await setLiveStatus({ studying:false, baseElapsedMs:0 });
-    if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; }
-    if(boardUnsub){ boardUnsub(); boardUnsub = null; }
-    stopLiveTimers();
-    if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; }
-    friendCache = {};
-    liveCache = {};
-    viewingId = null;
+  async function doLogout(){
+    try{ exitFocusMode(); }catch(e){}
+    try{ if(timerRunning){ if(elapsedMs>3000){finishSession(false);}else{hardReset();} } }catch(e){}
+    try{ await flushStateNow(); }catch(e){}
+    try{ await setLiveStatus({studying:false,baseElapsedMs:0}); }catch(e){}
+    try{ if(selfLiveUnsub){selfLiveUnsub();selfLiveUnsub=null;} }catch(e){}
+    try{ if(boardUnsub){boardUnsub();boardUnsub=null;} }catch(e){}
+    try{ stopLiveTimers(); }catch(e){}
+    try{ if(friendBoardsPollHandle){clearInterval(friendBoardsPollHandle);friendBoardsPollHandle=null;} }catch(e){}
+    friendCache={}; liveCache={}; viewingId=null;
     await signOut(auth);
   }
 
-// ---------- account / profile ----------
+  document.getElementById('acctBtn').addEventListener('click', openAccountModal);
+  document.getElementById('bellBtn').addEventListener('click', openNotificationsModal);
+
+  // ---------- account / profile ----------
   function renderHeaderAvatar(){
     const btn = document.getElementById('acctBtn');
     if(!me){ btn.innerHTML=''; return; }
@@ -1113,16 +1066,14 @@ async function doLogout(){
     if(jumpToGroupId){ drawDetail(jumpToGroupId); } else { drawList(); }
   }
 
-  
-
-onAuthStateChanged(auth, async (user)=>{
+  onAuthStateChanged(auth, async (user)=>{
     if(user && !booted){
       booted = true;
       window.__meId = user.uid;
       try{
         const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
-      }catch(e){ me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null }; }
+        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: 'Student', color: COLORS[0] };
+      }catch(e){ me = { id: user.uid, name: 'Student', color: COLORS[0] }; }
       showApp();
       await loadState();
     } else if(!user){
@@ -1131,9 +1082,7 @@ onAuthStateChanged(auth, async (user)=>{
       window.__meId = null;
       showAuth();
     }
-  })
-
-;
+  });
   async function loadUsersList(){
     try{
       const res = await window.storage.get(USERS_KEY, true);
