@@ -28,6 +28,15 @@ const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 const rtdb = getDatabase(fbApp);
 
+// NOTE: intentionally NOT calling enableIndexedDbPersistence() here. Safari/WebKit's
+// IndexedDB (which is what every iPhone, iPad, and home-screen PWA on this project
+// runs on) has a long history of serious, still-open bugs: queued writes that are
+// silently dropped and never sent after the tab is backgrounded, the DB refusing to
+// open at all citing "potential corruption" (iOS 18, reported May 2025), and Safari's
+// 7-day-inactivity storage wipe (ITP) clearing any not-yet-synced local queue outright.
+// Relying on that cache as a safety net was a bigger data-loss risk on this platform
+// mix than just failing visibly when offline — see below.
+
 // ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
 if('serviceWorker' in navigator){
@@ -37,17 +46,19 @@ if('serviceWorker' in navigator){
   });
 }
 
+// TODO: paste your Web Push "VAPID key" from
+// Firebase console → Project settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = 'BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs';
 
 async function pushPermissionState(){
   if(!('Notification' in window)) return 'unsupported';
-  return Notification.permission;
+  return Notification.permission; // 'granted' | 'denied' | 'default'
 }
 
 async function enablePushNotifications(){
   if(!('Notification' in window)) return { ok:false, reason:'unsupported' };
   if(!VAPID_KEY || VAPID_KEY==='PASTE_YOUR_VAPID_KEY_HERE'){
-    console.warn('Push notifications are not configured yet.');
+    console.warn('Push notifications are not configured yet: VAPID_KEY is still the placeholder. Get the real key from Firebase Console → Project settings → Cloud Messaging → Web Push certificates, and paste it in.');
     return { ok:false, reason:'not_configured' };
   }
   try{
@@ -58,10 +69,11 @@ async function enablePushNotifications(){
     if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
-    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty' };
+    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
     if(window.__meId){
       await setDoc(doc(db, 'pushTokens', window.__meId), { token, updatedAt: Date.now() }, { merge:true });
     }
+    // Foreground messages (app open) show as a normal system notification too
     onMessage(messaging, (payload)=>{
       const title = payload.notification?.title || 'Study Board';
       const body = payload.notification?.body || '';
@@ -74,6 +86,11 @@ async function enablePushNotifications(){
   }
 }
 
+// ---- thin wrapper matching the old window.storage API, backed by Firestore ----
+// personal(shared=false)  -> boards/{myId}          (one doc per person)
+// shared board mirror     -> boards/{userId}        (same doc, readable by everyone in test mode)
+// shared registry         -> registry/users
+// shared "together" tasks -> sharedTasks/{date}
 const storage = {
   async get(key, shared){
     const ref = keyToRef(key, shared);
@@ -82,6 +99,10 @@ const storage = {
   },
   async set(key, value, shared){
     const ref = keyToRef(key, shared);
+    // merge:true for the main board doc so a write from one device deep-merges
+    // nested fields (dailyExtra/sessions/completion, keyed by date) into Firestore
+    // instead of replacing the whole document — this is what let one device's
+    // save silently erase another device's un-synced changes.
     const opts = (key === 'study-board-data-v1') ? { merge:true } : undefined;
     await setDoc(ref, { value: JSON.parse(value) }, opts);
     return { key, value, shared };
@@ -98,8 +119,7 @@ function keyToRef(key, shared){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-window.storage = storage;
-
+window.storage = storage; // keep the rest of the app's code unchanged
 (function(){
   const COLORS = ['#FF5A5F','#7FB3D5','#8FCB9B','#B8A0D9','#E6A0C4','#E8C468'];
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -410,7 +430,9 @@ window.storage = storage;
     if(document.visibilityState==='hidden' && me) flushStateNow();
   });
 
-  // ---------- auth: login / sign up / logout ----------
+  
+
+// ---------- auth: login / sign up / logout ----------
   let booted = false;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
@@ -523,33 +545,26 @@ window.storage = storage;
     document.getElementById('authSubmit').disabled = false;
   });
 
-  async function doLogout(){
-    try{ exitFocusMode(); }catch(e){}
-    try{
-      if(timerRunning){
-        if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
-      }
-    }catch(e){}
-    try{ await flushStateNow(); }catch(e){}
-    try{ await setLiveStatus({ studying:false, baseElapsedMs:0 }); }catch(e){}
-    try{ if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; } }catch(e){}
-    try{ if(boardUnsub){ boardUnsub(); boardUnsub = null; } }catch(e){}
-    try{ stopLiveTimers(); }catch(e){}
-    try{ if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; } }catch(e){}
+async function doLogout(){
+    // stop any active timer/session cleanly so it never appears "studying" after logout,
+    // and make sure that save actually lands before we sign out (no debounce race)
+    exitFocusMode();
+    if(timerRunning){
+      if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
+    }
+    await flushStateNow();
+    await setLiveStatus({ studying:false, baseElapsedMs:0 });
+    if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; }
+    if(boardUnsub){ boardUnsub(); boardUnsub = null; }
+    stopLiveTimers();
+    if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; }
     friendCache = {};
     liveCache = {};
     viewingId = null;
-    try{
-      await signOut(auth);
-      window.location.reload(); // FORCES A CLEAN RESTART AFTER LOGOUT
-    }catch(e){
-      alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
-    }
+    await signOut(auth);
   }
 
-  document.getElementById('acctBtn').addEventListener('click', openAccountModal);
-  document.getElementById('bellBtn').addEventListener('click', openNotificationsModal);
-  // ---------- account / profile ----------
+// ---------- account / profile ----------
   function renderHeaderAvatar(){
     const btn = document.getElementById('acctBtn');
     if(!me){ btn.innerHTML=''; return; }
@@ -1098,14 +1113,16 @@ window.storage = storage;
     if(jumpToGroupId){ drawDetail(jumpToGroupId); } else { drawList(); }
   }
 
-  onAuthStateChanged(auth, async (user)=>{
+  
+
+onAuthStateChanged(auth, async (user)=>{
     if(user && !booted){
       booted = true;
       window.__meId = user.uid;
       try{
         const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: 'Student', color: COLORS[0] };
-      }catch(e){ me = { id: user.uid, name: 'Student', color: COLORS[0] }; }
+        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
+      }catch(e){ me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null }; }
       showApp();
       await loadState();
     } else if(!user){
@@ -1114,7 +1131,9 @@ window.storage = storage;
       window.__meId = null;
       showAuth();
     }
-  });
+  })
+
+;
   async function loadUsersList(){
     try{
       const res = await window.storage.get(USERS_KEY, true);
