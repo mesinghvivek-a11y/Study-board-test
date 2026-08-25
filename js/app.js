@@ -20,7 +20,7 @@ const firebaseConfig = {
   projectId: "studyboardpro",
   storageBucket: "studyboardpro.firebasestorage.app",
   messagingSenderId: "487214631768",
-  appId: "1:487214631768:web:ee9273681379f7d04cb32d",
+  appId: "1:706066762938:web:ee9273681379f7d04cb32d",
   measurementId: "G-SVK750HR2D"
 };
 const fbApp = initializeApp(firebaseConfig);
@@ -419,63 +419,38 @@ window.storage = storage;
   });
 
   // GOOGLE SIGN IN LOGIC
-  // Popup is used as the primary flow: it completes in the same tab/context
-  // instead of doing a full top-level redirect through accounts.google.com and
-  // back. Redirect-based sign-in depends on Firebase being able to read back
-  // pending-auth state it wrote to storage before leaving the page — modern
-  // browsers (Safari ITP, Chrome storage partitioning) and installed
-  // standalone PWAs on iOS routinely block or drop that state, which is what
-  // was causing "select an account -> land back on the login screen, nothing
-  // happens" with no error ever shown. Popup sidesteps that entirely.
-  // We still fall back to redirect for browsers that can't do popups
-  // (e.g. some in-app/webview browsers), and resolve THAT via getRedirectResult.
-  async function completeGoogleSignIn(user){
-    if(booted) return;
-    booted = true;
-    window.__meId = user.uid;
-    try {
-      const res = await window.storage.get('study-board-profile', false);
-      me = res && res.value ? JSON.parse(res.value) : {
-        id: user.uid,
-        name: user.displayName || 'Student',
-        color: COLORS[0],
-        photo: user.photoURL || null
-      };
-    } catch(err) {
-      me = { id: user.uid, name: user.displayName || 'Student', color: COLORS[0], photo: user.photoURL || null };
-    }
-    try { await registerUser(me); } catch(err){}
-    showApp();
-    await loadState();
-  }
-
   document.getElementById('googleAuthBtn').addEventListener('click', async (e)=>{
     e.preventDefault(); // PREVENTS PAGE RELOAD
     setAuthError('');
-    const btn = document.getElementById('googleAuthBtn');
-    btn.disabled = true;
-    const provider = new GoogleAuthProvider();
+    document.getElementById('googleAuthBtn').disabled = true;
     try {
-      const result = await signInWithPopup(auth, provider);
-      if(result && result.user) await completeGoogleSignIn(result.user);
-    } catch(err) {
-      const code = err && err.code;
-      if(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'){
-        // User closed the popup themselves — not a real error, stay quiet.
-      } else if(code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment'){
-        // Browser can't do popups (blocked, or an in-app webview) — fall back to redirect.
-        try { await signInWithRedirect(auth, provider); }
-        catch(redirectErr){ setAuthError(redirectErr.message || 'Google sign-in failed.'); }
-      } else {
-        setAuthError((err && err.message) || 'Google sign-in failed.');
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithRedirect(auth, provider);
+    } catch(e) {
+      setAuthError(e.message || 'Google sign-in failed.');
+      document.getElementById('googleAuthBtn').disabled = false;
     }
-    btn.disabled = false;
   });
 
-  // Handles the case where we had to fall back to signInWithRedirect above.
+  // SAFE GOOGLE REDIRECT HANDLER (Contained within scope)
   getRedirectResult(auth).then(async (result) => {
-    if (result && result.user) await completeGoogleSignIn(result.user);
+    if (result && result.user && !booted) {
+      booted = true;
+      window.__meId = result.user.uid;
+      try {
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { 
+          id: result.user.uid, 
+          name: result.user.displayName || 'Student', 
+          color: COLORS[0], 
+          photo: result.user.photoURL || null 
+        };
+      } catch(err) {
+        me = { id: result.user.uid, name: result.user.displayName || 'Student', color: COLORS[0], photo: result.user.photoURL || null };
+      }
+      showApp();
+      await loadState();
+    }
   }).catch((e) => {
     if (e && e.code !== 'auth/redirect-cancelled-by-user') {
       setAuthError(e.message || 'Google sign-in redirect failed.');
