@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
@@ -38,19 +37,17 @@ if('serviceWorker' in navigator){
   });
 }
 
-// TODO: paste your Web Push "VAPID key" from
-// Firebase console → Project settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = 'BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs';
 
 async function pushPermissionState(){
   if(!('Notification' in window)) return 'unsupported';
-  return Notification.permission; // 'granted' | 'denied' | 'default'
+  return Notification.permission;
 }
 
 async function enablePushNotifications(){
   if(!('Notification' in window)) return { ok:false, reason:'unsupported' };
   if(!VAPID_KEY || VAPID_KEY==='PASTE_YOUR_VAPID_KEY_HERE'){
-    console.warn('Push notifications are not configured yet: VAPID_KEY is still the placeholder. Get the real key from Firebase Console → Project settings → Cloud Messaging → Web Push certificates, and paste it in.');
+    console.warn('Push notifications are not configured yet.');
     return { ok:false, reason:'not_configured' };
   }
   try{
@@ -61,11 +58,10 @@ async function enablePushNotifications(){
     if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
-    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
+    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty' };
     if(window.__meId){
       await setDoc(doc(db, 'pushTokens', window.__meId), { token, updatedAt: Date.now() }, { merge:true });
     }
-    // Foreground messages (app open) show as a normal system notification too
     onMessage(messaging, (payload)=>{
       const title = payload.notification?.title || 'Study Board';
       const body = payload.notification?.body || '';
@@ -78,11 +74,6 @@ async function enablePushNotifications(){
   }
 }
 
-// ---- thin wrapper matching the old window.storage API, backed by Firestore ----
-// personal(shared=false)  -> boards/{myId}          (one doc per person)
-// shared board mirror     -> boards/{userId}        (same doc, readable by everyone in test mode)
-// shared registry         -> registry/users
-// shared "together" tasks -> sharedTasks/{date}
 const storage = {
   async get(key, shared){
     const ref = keyToRef(key, shared);
@@ -91,10 +82,6 @@ const storage = {
   },
   async set(key, value, shared){
     const ref = keyToRef(key, shared);
-    // merge:true for the main board doc so a write from one device deep-merges
-    // nested fields (dailyExtra/sessions/completion, keyed by date) into Firestore
-    // instead of replacing the whole document — this is what let one device's
-    // save silently erase another device's un-synced changes.
     const opts = (key === 'study-board-data-v1') ? { merge:true } : undefined;
     await setDoc(ref, { value: JSON.parse(value) }, opts);
     return { key, value, shared };
@@ -111,40 +98,42 @@ function keyToRef(key, shared){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-window.storage = storage; // keep the rest of the app's code unchanged
+window.storage = storage;
+
 (function(){
   const COLORS = ['#FF5A5F','#7FB3D5','#8FCB9B','#B8A0D9','#E6A0C4','#E8C468'];
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const STORAGE_KEY = 'study-board-data-v1';
-  const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
+  const USERS_KEY = 'study-board-users';
 
   let state = {
     subjects: [
       {id:'s1', name:'General', color:'#7FB3D5'}
     ],
-    weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label}
-    dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
-    completion: {},     // { 'YYYY-MM-DD|blockId': true }
-    sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
-    goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
-    weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
-    focusPresetNames: ['10 markers','15 marker','recall','study'] // editable labels for the 10/15/30/60min focus chips
+    weeklyTemplate: [], 
+    dailyExtra: {},     
+    completion: {},     
+    sessions: {},        
+    goals: { dailyMin: 120, weeklyMin: 600 }, 
+    weeklyGoals: [], 
+    focusPresetNames: ['30 min','1 hour','custom'],
+    weekStartDay: 0
   };
 
   let selectedDate = new Date();
   let currentScreen = 'timer';
 
-  let me = null;              // {id, name, color}
-  let allProfiles = [];       // global directory: everyone who has ever registered (for name/color/photo lookup)
-  let usersList = [];         // people visible to me RIGHT NOW — derived from the active group's membership
-  let viewingId = null;       // null/undefined = viewing "me"; else a friend's id
-  let friendCache = {};       // id -> board data (read-only snapshots)
-  let myReads = {};           // cid -> last-read timestamp (for comment badges)
+  let me = null;              
+  let allProfiles = [];       
+  let usersList = [];         
+  let viewingId = null;       
+  let friendCache = {};       
+  let myReads = {};           
 
   // ---------- groups ----------
-  let myGroupIds = [];        // group ids I belong to
-  let activeGroupId = null;   // which group's roster is currently driving usersList/people-row/snap-row
-  let activeGroupData = null; // full doc of the active group
+  let myGroupIds = [];        
+  let activeGroupId = null;   
+  let activeGroupData = null; 
   let groupUnsub = null;
 
   function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
@@ -155,14 +144,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return !!(m && m.hideSchedule);
   }
 
-  // ---------- multi-device sync: never let one device's save erase another's ----------
-  // The board doc can be written from several devices/tabs. Instead of blind
-  // last-write-wins, we keep a live listener on our own board doc and union-merge
-  // whatever comes back into the in-memory `state` (by item id, or by date key for
-  // the date-indexed maps) before we ever write again. Nothing that exists on
-  // either side is dropped by this merge.
+  // ---------- multi-device sync ----------
   let lastSyncAt = null;
-  let syncStatus = 'stale'; // 'stale' | 'syncing' | 'ok' | 'err'
+  let syncStatus = 'stale'; 
   let applyingRemote = false;
   function mergeArraysById(localArr, remoteArr){
     const byId = new Map();
@@ -183,20 +167,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals);
     state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions);
-    // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
-    // union it so a tick on one device never un-ticks what another device set.
     state.completion = Object.assign({}, remote.completion||{}, state.completion||{});
     if(remote.goals && (!state.goals || Object.keys(state.goals).length===0)) state.goals = remote.goals;
   }
-  // one-time cleanup: old "weekly template" blocks had no week binding and so
-  // silently repeated forever, every week, until removed by hand. Any block
-  // saved before this fix is missing weekStart — drop those legacy infinite
-  // blocks so they stop reappearing; anything added going forward is scoped
-  // to the single week it was created for (see openAddModal).
-  // IMPORTANT: only persists the cleanup when the caller confirms `state` was just
-  // loaded from the live server (not a possibly-stale offline cache) — saving a
-  // filtered array built from stale data would permanently erase anything a
-  // different device added since this device's cache was last refreshed.
   function migrateLegacyWeeklyTemplate(fromFreshServerData){
     if(!state.weeklyTemplate || !state.weeklyTemplate.length) return;
     const before = state.weeklyTemplate.length;
@@ -240,7 +213,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!me) return;
     setSyncStatus('syncing');
     try{
-      // manual "sync now" always means the actual server truth, never a cached guess
       const snap = await getDocFromServer(doc(db, 'boards', me.id));
       if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
       await flushStateNow();
@@ -263,7 +235,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function waitForOnline(){
     return new Promise((resolve)=>{
-      if(navigator.onLine){ setTimeout(resolve, 1500); return; } // brief pause, then retry even if reported online (flaky network)
+      if(navigator.onLine){ setTimeout(resolve, 1500); return; }
       const handler = ()=>{ window.removeEventListener('online', handler); resolve(); };
       window.addEventListener('online', handler);
     });
@@ -285,11 +257,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
       try{
         snap = await getDocFromServer(doc(db, 'boards', me.id));
       }catch(e){
-        // Genuinely offline or unreachable. We deliberately do NOT fall back to a
-        // local cache here (see the note by enableIndexedDbPersistence above) —
-        // proceeding with possibly-stale or empty data and then letting the app
-        // save over it is exactly how data got lost before. Wait for connectivity
-        // and retry instead of guessing.
+        // PREVENTS INFINITE LOOP IF PERMISSION DENIED BY FIREBASE RULES
+        if (e.code === 'permission-denied' || String(e).includes('permission')) {
+            hideLoadBlocker();
+            setAuthError("Database access denied. Please try logging out and back in.");
+            await signOut(auth);
+            showAuth();
+            return; 
+        }
         attempts++;
         showLoadBlocker(attempts===1
           ? "You're offline — waiting to reconnect…"
@@ -305,30 +280,32 @@ window.storage = storage; // keep the rest of the app's code unchanged
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
+    await loadNotificationSettings();
     await loadMyGroupIds();
     await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
-    renderFocusPresetNames();
     render();
     startLiveTimers();
     subscribeSelfLiveStatus();
     subscribeSelfNudges();
     subscribeOwnBoard();
     renderSnapRow();
-    setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
+    scheduleLocalTaskAlerts();
+    setLiveStatus({ todayTotalMin: todayTotalMinutes() });
     refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
     friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
     setSyncStatus('ok');
     checkJoinLinkParam();
   }
+  
   function checkJoinLinkParam(){
     const params = new URLSearchParams(location.search);
     const code = params.get('join');
     if(!code) return;
-    history.replaceState(null, '', location.pathname); // strip it so a refresh doesn't re-prompt
-    if(myGroupIds.length && activeGroupData && activeGroupData.inviteCode===code.toUpperCase()) return; // already in it & active
+    history.replaceState(null, '', location.pathname);
+    if(myGroupIds.length && activeGroupData && activeGroupData.inviteCode===code.toUpperCase()) return;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `
@@ -365,19 +342,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }
     });
   }
-  // ---------- daily backup snapshot (safety net, independent of the live save path) ----------
-  // Once per calendar day, on a confirmed-fresh load from the server, mirror the
-  // whole board to a separate collection keyed by date. This never overwrites
-  // itself and is never read by the app's normal code path, so a bug in normal
-  // save/merge logic can't also corrupt or skip a backup — there's always a
-  // same-day-or-recent snapshot to manually restore from in the Firebase console.
+
   async function maybeWriteDailyBackup(){
     if(!me) return;
     const todayKey = fmtDate(new Date());
     const backupRef = doc(db, 'boardBackups', me.id + '_' + todayKey);
     try{
       const existing = await getDoc(backupRef);
-      if(existing.exists()) return; // already backed up today
+      if(existing.exists()) return;
       await setDoc(backupRef, { uid: me.id, date: todayKey, savedAt: Date.now(), value: state });
     }catch(e){ console.warn('daily backup failed', e); }
   }
@@ -393,11 +365,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{ await setDoc(doc(db, 'commentReads', me.id), myReads); }catch(e){}
   }
   let saveTimeout = null;
-  let stateReadyToPersist = false; // becomes true only after loadState() has reconciled with the server —
-                                    // guards against any accidental early save overwriting real data with a
-                                    // still-empty/still-stale in-memory `state`
+  let stateReadyToPersist = false; 
   function saveState(){
-    if(!stateReadyToPersist){ console.warn('saveState() blocked — state not yet reconciled with server'); return; }
+    if(!stateReadyToPersist){ return; }
     clearTimeout(saveTimeout);
     setSyncStatus('syncing');
     saveTimeout = setTimeout(async ()=>{
@@ -410,7 +380,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }, 250);
   }
   async function flushStateNow(){
-    if(!stateReadyToPersist){ console.warn('flushStateNow() blocked — state not yet reconciled with server'); return; }
+    if(!stateReadyToPersist){ return; }
     clearTimeout(saveTimeout);
     try{
       await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
@@ -647,7 +617,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <option value="300000" ${snapSettings.freqMs===300000?'selected':''}>Every 5 min</option>
           </select>
         </div>
-        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with. Off by default. The camera turns on only for a moment to take each snapshot, then turns off again — it's never left running.</div>
+        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with.</div>
         <div class="section-divider"></div>
         <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">👥 My Groups</button>
         <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
@@ -661,7 +631,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.querySelector('#acct-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
     let pickedColor = me.color;
     backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
@@ -726,14 +695,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
         stopSnapshotScheduler();
         if(wasEnabled) setLiveStatus({ snapshot:null, snapshotAt:null });
       } else if(camCaptureIntervalHandle){
-        // frequency may have changed — reschedule with the new interval
         stopSnapshotScheduler();
         startSnapshotScheduler();
       } else if(timerRunning){
         startSnapshotScheduler();
       }
       renderSnapRow();
-
       renderHeaderAvatar();
       render();
       close();
@@ -742,32 +709,119 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- notifications ----------
   const NOTIF_LIMIT = 60;
+  const DEFAULT_NOTIFICATION_SETTINGS = {
+    timerEnd: true, taskApproaching: true, studyStart: true, taskComment: true, groupChanges: true
+  };
+  let notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS);
+  let notificationSettingsLoaded = false;
+  async function loadNotificationSettings(){
+    if(!me) return notificationSettings;
+    try{
+      const snap = await getDoc(doc(db,'notificationSettings',me.id));
+      notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, snap.exists()?snap.data():{});
+    }catch(e){ notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS); }
+    notificationSettingsLoaded = true;
+    return notificationSettings;
+  }
+  async function saveNotificationSettings(next){
+    notificationSettings = Object.assign({}, DEFAULT_NOTIFICATION_SETTINGS, next||{});
+    if(me){ try{ await setDoc(doc(db,'notificationSettings',me.id), notificationSettings, {merge:true}); }catch(e){} }
+  }
+  function notificationCategoryEnabled(category){
+    if(category==='timerEnd') return notificationSettings.timerEnd;
+    if(category==='taskApproaching') return notificationSettings.taskApproaching;
+    if(category==='studyStart') return notificationSettings.studyStart;
+    if(category==='taskComment') return notificationSettings.taskComment;
+    if(category==='groupChanges') return notificationSettings.groupChanges;
+    return true;
+  }
+  async function showLocalSystemNotification(title, body, category){
+    if(!notificationCategoryEnabled(category)) return;
+    try{
+      if(!('Notification' in window) || Notification.permission!=='granted') return;
+      if(swRegistration){
+        await swRegistration.showNotification(title, {body, icon:'./icons/icon-192.png', badge:'./icons/icon-192.png', data:{url:'./index.html'}, vibrate:[100,50,100]});
+      } else {
+        new Notification(title, {body});
+      }
+    }catch(e){ console.warn('local notification failed',e); }
+  }
+  function scheduleLocalTaskAlerts(){
+    if(window.__taskAlertHandle) clearInterval(window.__taskAlertHandle);
+    const check=()=>{
+      if(!me || !notificationSettings.taskApproaching) return;
+      const now=Date.now();
+      const dateKey=fmtDate(new Date());
+      const tasks=blocksForDateIn(state,new Date());
+      tasks.forEach(t=>{
+        if(!t.start) return;
+        const parts=String(t.start).split(':').map(Number);
+        if(parts.length<2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return;
+        const due=new Date(); due.setHours(parts[0],parts[1],0,0);
+        const diff=due.getTime()-now;
+        if(diff>=4*60*1000 && diff<=6*60*1000){
+          const key='sb-task-alert:'+dateKey+':'+t.id;
+          if(localStorage.getItem(key)) return;
+          localStorage.setItem(key,'1');
+          const label=t.label||subjectNameIn(t.subject,state);
+          pushNotification(me.id, `Task starting in 5 minutes: ${label}`, 'taskApproaching');
+          showLocalSystemNotification('Study Board', `Task starting in 5 minutes: ${label}`, 'taskApproaching');
+        }
+      });
+    };
+    check();
+    window.__taskAlertHandle=setInterval(check,30000);
+  }
+  function armLocalTimerEndAlert(){
+    if(window.__timerAlertHandle) clearTimeout(window.__timerAlertHandle);
+    if(!notificationSettings.timerEnd || timerMode!=='countdown' || !timerRunning) return;
+    const remaining=Math.max(0, countdownTotalMs-elapsedMs);
+    if(remaining<=0) return;
+    window.__timerAlertHandle=setTimeout(()=>{
+      if(!timerRunning || timerMode!=='countdown') return;
+      pushNotification(me.id, 'Focus timer finished 🎉', 'timerEnd');
+      showLocalSystemNotification('Focus timer finished', 'Your focus timer is complete.', 'timerEnd');
+    }, remaining+250);
+  }
+  function clearLocalTimerEndAlert(){ if(window.__timerAlertHandle){ clearTimeout(window.__timerAlertHandle); window.__timerAlertHandle=null; } }
+  async function writeTimerSchedule(active){
+    if(!me) return;
+    try{
+      await setDoc(doc(db,'timerSchedules',me.id), {
+        active:!!active,
+        endsAt: active && timerMode==='countdown' ? Date.now()+Math.max(0,countdownTotalMs-elapsedMs) : null,
+        title: linkedTaskId ? ((blocksForDateIn(state,new Date()).find(t=>t.id===linkedTaskId)||{}).label || 'Focus timer') : 'Focus timer',
+        updatedAt:Date.now()
+      }, {merge:true});
+    }catch(e){}
+  }
   async function loadNotifications(uid){
     try{
       const snap = await getDoc(doc(db, 'notifications', uid));
       return snap.exists() ? (snap.data().items || []) : [];
     }catch(e){ return []; }
   }
-  async function pushNotification(uid, text){
+  async function pushNotification(uid, text, category='taskComment', meta={}){
     if(!uid) return;
     try{
+      const now=Date.now();
       const items = await loadNotifications(uid);
-      items.push({ text, ts: Date.now(), read:false });
+      items.push({ text, ts: now, read:false, category, ...meta });
       while(items.length > NOTIF_LIMIT) items.shift();
       await setDoc(doc(db, 'notifications', uid), { items });
     }catch(e){ console.error('notify failed', e); }
   }
-  async function notifyOthers(text, excludeId){
+  async function notifyOthers(text, excludeId, category='taskComment'){
     const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
-    for(const u of targets){ await pushNotification(u.id, text); }
+    for(const u of targets){ await pushNotification(u.id, text, category); }
   }
   async function notifyForComment(cid, title, text){
     const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
     if(cid.startsWith('p_')){
       const ownerId = cid.split('_')[1];
-      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`, 'taskComment');
     } else if(cid.startsWith('s_')){
-      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`, null, 'taskComment');
     }
   }
   async function refreshBellBadge(){
@@ -780,7 +834,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     else { badge.style.display='none'; }
   }
   async function openNotificationsModal(){
-    const items = await loadNotifications(me.id); // ascending, oldest first
+    const items = await loadNotifications(me.id); 
     const displayItems = items.slice().reverse();
     const permState = await pushPermissionState();
     const backdrop = document.createElement('div');
@@ -798,8 +852,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <div class="live-row" style="justify-content:space-between; margin-bottom:6px;">
             <span style="color:var(--chalk-dim);">Push notifications</span>
             <button class="btn btn-ghost" id="enablePushBtn" style="flex:none; padding:8px 14px;">Re-check / fix</button>
-          </div>
-          <div id="pushDetailMsg" style="font-size:10.5px; color:var(--chalk-faint); margin-bottom:12px; word-break:break-word;"></div>` : ''}
+          </div>` : ''}
         ${permState==='denied' ? `
           <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:12px;">
             Notifications are blocked for this app in your browser/phone settings.
@@ -823,44 +876,115 @@ window.storage = storage; // keep the rest of the app's code unchanged
       pushBtn.addEventListener('click', async ()=>{
         pushBtn.textContent = '…';
         const res = await enablePushNotifications();
-        const detailEl = backdrop.querySelector('#pushDetailMsg');
-        if(res.ok){ pushBtn.textContent = 'Enabled ✓'; pushBtn.disabled = true; if(detailEl) detailEl.textContent = ''; }
+        if(res.ok){ pushBtn.textContent = 'Enabled ✓'; pushBtn.disabled = true; }
         else if(res.reason==='not_configured'){ pushBtn.textContent = 'Not set up yet'; pushBtn.disabled = true; }
         else if(res.reason==='denied'){ pushBtn.textContent = 'Blocked in browser settings'; }
-        else {
-          pushBtn.textContent = 'Try again';
-          if(detailEl) detailEl.textContent = res.detail ? `Error: ${res.detail}` : 'Unknown error — check the browser console for details.';
-        }
+        else { pushBtn.textContent = 'Try again'; }
       });
     }
-
     if(items.length){
-      try{
-        await setDoc(doc(db, 'notifications', me.id), { items: [] });
-      }catch(e){}
+      try{ await setDoc(doc(db, 'notifications', me.id), { items: [] }); }catch(e){}
       refreshBellBadge();
     }
   }
 
-  function renderGroupBar(){
-    const label = document.getElementById('groupBarLabel');
-    if(!label) return;
+  // ---------- v6 Live group controller ----------
+  let liveGroupUsersHidden = false;
+  function liveGroupHideKey(){ return activeGroupId ? 'sb-live-group-hidden:'+activeGroupId : 'sb-live-group-hidden:none'; }
+  function loadLiveGroupHidden(){
+    try{ liveGroupUsersHidden = localStorage.getItem(liveGroupHideKey()) === '1'; }catch(e){ liveGroupUsersHidden = false; }
+  }
+  function saveLiveGroupHidden(){
+    try{ localStorage.setItem(liveGroupHideKey(), liveGroupUsersHidden ? '1' : '0'); }catch(e){}
+  }
+  function renderLiveGroupPanel(){
+    const btn = document.getElementById('liveGroupBtn');
+    const label = document.getElementById('liveGroupLabel');
+    const icon = document.getElementById('liveGroupIcon');
+    const row = document.getElementById('livePeopleRow');
+    if(!btn || !label || !icon) return;
     if(!activeGroupData){
-      label.textContent = 'No group — tap to create or join one';
+      label.textContent = 'Create or join a group';
+      icon.textContent = '＋';
+      btn.classList.add('minimal');
+      if(row) row.style.display = '';
       return;
     }
-    let deadlineTag = '';
-    if(activeGroupData.deadlineAt){
-      const ended = Date.now() > activeGroupData.deadlineAt;
-      const d = new Date(activeGroupData.deadlineAt);
-      deadlineTag = `<span class="deadline-tag">${ended ? 'ENDED' : 'ends '+MONTHS[d.getMonth()]+' '+d.getDate()}</span>`;
+    if(liveGroupUsersHidden){
+      btn.classList.add('minimal');
+      icon.textContent = '👤';
+      label.textContent = me ? me.name : 'You';
+      if(row) row.style.display = 'none';
+    }else{
+      btn.classList.remove('minimal');
+      icon.textContent = '👥';
+      label.textContent = activeGroupData.name || 'Group';
+      if(row) row.style.display = currentScreen==='live' ? '' : 'none';
     }
-    label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
-  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
-  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
-    if(activeGroupId) openGroupsModal(activeGroupId);
-    else openGroupsModal();
+  function openLiveGroupMenu(){
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>${escapeHtml(activeGroupData?.name || 'Group')}</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 12px;">Manage the active Live group.</div><div class="group-action-grid"><button class="btn btn-ghost" id="lg-edit">✎<br><small>Edit</small></button><button class="btn btn-ghost" id="lg-share">↗<br><small>Share</small></button><button class="btn btn-ghost" id="lg-hide">◉<br><small>${liveGroupUsersHidden?'Show people':'Hide people'}</small></button><button class="btn btn-primary" id="lg-switch">⇄<br><small>Switch / Create</small></button></div></div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#lg-edit').addEventListener('click',()=>{close(); openGroupEditModal(activeGroupId);});
+    backdrop.querySelector('#lg-share').addEventListener('click',()=>{close(); openGroupShareModal(activeGroupId);});
+    backdrop.querySelector('#lg-hide').addEventListener('click',()=>{liveGroupUsersHidden=!liveGroupUsersHidden; saveLiveGroupHidden(); renderLiveGroupPanel(); renderPeopleRow(); close();});
+    backdrop.querySelector('#lg-switch').addEventListener('click',()=>{close(); openGroupsModal();});
+  }
+  async function openGroupShareModal(groupId){
+    if(!groupId) return;
+    let g=activeGroupData;
+    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
+    if(!g) return;
+    const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;
+    const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase;margin-bottom:4px;">Access code</div><div class="code">${escapeHtml(g.inviteCode||'')}</div><img src="${qrUrl}" alt="QR code"><button class="btn btn-ghost" id="lg-copy" style="width:100%;margin-top:6px;">Copy invite link</button></div><div style="font-size:11px;color:var(--chalk-faint);word-break:break-all;">${escapeHtml(inviteUrl)}</div></div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#lg-copy').addEventListener('click',()=>{navigator.clipboard?.writeText(inviteUrl).catch(()=>{}); const b=backdrop.querySelector('#lg-copy'); const old=b.textContent; b.textContent='Copied ✓'; setTimeout(()=>b.textContent=old,1200);});
+  }
+  async function openGroupEditModal(groupId){
+    if(!groupId) return;
+    let g=activeGroupData;
+    try{ const snap=await getDoc(doc(db,'groups',groupId)); if(snap.exists()) g=snap.data(); }catch(e){}
+    if(!g) return;
+    const isOwner=g.ownerId===me.id;
+    const members=Object.keys(g.members||{});
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit group</h3><div class="field-row"><label>Group name</label><input id="lge-name" type="text" value="${escapeHtml(g.name||'')}"></div><div class="field-row"><label>Daily target (hours)</label><input id="lge-daily" type="number" min="0" step="0.5" value="${Number(g.dailyGoalHours||0)}"></div><div class="field-row"><label>Weekly target (hours)</label><input id="lge-weekly" type="number" min="0" step="0.5" value="${Number(g.weeklyGoalHours||0)}"></div><div class="field-row"><label>Deadline</label><input id="lge-deadline" type="date" value="${g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):''}"></div><h4 style="margin:16px 0 6px;font-family:'Kalam';font-size:14px;color:var(--chalk-dim);font-weight:400;">Members</h4><div class="group-edit-members" id="lge-members"></div><div class="modal-actions"><button class="btn btn-ghost" id="lge-cancel">Cancel</button><button class="btn btn-primary" id="lge-save">Save</button></div>${isOwner?'<button class="btn btn-danger" id="lge-delete" style="width:100%;margin-top:8px;">Delete group</button>':''}</div>`;
+    document.body.appendChild(backdrop);
+    const close=()=>backdrop.remove();
+    backdrop.querySelector('.close-x').addEventListener('click',close);
+    backdrop.querySelector('#lge-cancel').addEventListener('click',close);
+    const membersWrap=backdrop.querySelector('#lge-members');
+    membersWrap.innerHTML=members.map(uid=>{const p=profileFor(uid); return `<div class="group-edit-member"><span>${escapeHtml(p.name)}${uid===me.id?' (you)':''}${uid===g.ownerId?' 👑':''}</span>${isOwner&&uid!==me.id?`<button type="button" data-remove="${uid}">Remove</button>`:''}</div>`;}).join('')||'<div style="padding:10px;color:var(--chalk-faint);">No members.</div>';
+    membersWrap.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{await removeMemberFromGroup(groupId,b.dataset.remove); openGroupEditModal(groupId); close();}));
+    backdrop.querySelector('#lge-save').addEventListener('click',async()=>{
+      const name=backdrop.querySelector('#lge-name').value.trim(); if(!name){alert('Group name is required.');return;}
+      const deadlineStr=backdrop.querySelector('#lge-deadline').value;
+      const patch={name,dailyGoalHours:parseFloat(backdrop.querySelector('#lge-daily').value)||0,weeklyGoalHours:parseFloat(backdrop.querySelector('#lge-weekly').value)||0,deadlineAt:deadlineStr?new Date(deadlineStr+'T23:59:59').getTime():null};
+      await setDoc(doc(db,'groups',groupId),patch,{merge:true}); close();
+    });
+    const del=backdrop.querySelector('#lge-delete');
+    if(del) del.addEventListener('click',async()=>{if(!confirm('Delete this group permanently?')) return; try{await deleteDoc(doc(db,'groups',groupId)); await deleteDoc(doc(db,'groupMemberships',me.id));}catch(e){alert('Could not delete group: '+e.message);return;} myGroupIds=myGroupIds.filter(id=>id!==groupId); activeGroupId=myGroupIds[0]||null; try{await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});}catch(e){} close(); await subscribeActiveGroup();});
+  }
+
+  function renderGroupBar(){
+    loadLiveGroupHidden();
+    renderLiveGroupPanel();
+  }
+  document.getElementById('liveGroupBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); openLiveGroupMenu(); });
+  let sharedPeopleCollapsed = false;
+  document.getElementById('peopleCollapseBtn')?.addEventListener('click', (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    sharedPeopleCollapsed=!sharedPeopleCollapsed;
+    renderPeopleRow();
   });
 
   function openGroupsModal(jumpToGroupId){
@@ -933,7 +1057,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="text" id="gc-password" placeholder="Set a password">
         </div>
         <div class="field-row">
-          <label>Deadline <span style="opacity:.6; text-transform:none;">(optional — a week, a month, exam date…)</span></label>
+          <label>Deadline <span style="opacity:.6; text-transform:none;">(optional)</span></label>
           <input type="date" id="gc-deadline">
         </div>
         <div class="field-row">
@@ -991,7 +1115,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="text" id="gj-code" placeholder="e.g. AB12CD" style="text-transform:uppercase;">
         </div>
         <div class="field-row">
-          <label>Password <span style="opacity:.6; text-transform:none;">(only if the group has one)</span></label>
+          <label>Password <span style="opacity:.6; text-transform:none;">(if applicable)</span></label>
           <input type="text" id="gj-password" placeholder="Leave blank if none">
         </div>
         <div class="status" id="gj-status" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:8px;"></div>
@@ -1128,6 +1252,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       showAuth();
     }
   });
+  
   async function loadUsersList(){
     try{
       const res = await window.storage.get(USERS_KEY, true);
@@ -1148,9 +1273,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     deriveUsersList();
   }
 
-  // ---------- groups engine ----------
   function genCode(len){
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
     let s=''; for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
     return s;
   }
@@ -1172,9 +1296,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(snap.exists()){
         myGroupIds = snap.data().groupIds || [];
         activeGroupId = snap.data().activeGroupId || myGroupIds[0] || null;
-        return true; // already set up — no migration needed
+        return true; 
       }
-    }catch(e){ /* fall through to migration */ }
+    }catch(e){}
     return false;
   }
   async function subscribeActiveGroup(){
@@ -1230,10 +1354,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
-    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`, 'groupChanges'); }
     return g;
   }
   async function leaveGroup(groupId){
+    try{
+      const snap = await getDoc(doc(db,'groups',groupId));
+      const g = snap.exists() ? snap.data() : null;
+      if(g){ for(const uid of Object.keys(g.members||{})){ if(uid!==me.id) await pushNotification(uid, `${me.name} left "${g.name}"`, 'groupChanges'); } }
+    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
     myGroupIds = myGroupIds.filter(id=>id!==groupId);
     const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
@@ -1241,6 +1370,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setActiveGroup(nextActive);
   }
   async function removeMemberFromGroup(groupId, uid){
+    try{
+      const snap=await getDoc(doc(db,'groups',groupId));
+      const g=snap.exists()?snap.data():null;
+      if(g){ const p=profileFor(uid); for(const memberId of Object.keys(g.members||{})){ if(memberId!==uid) await pushNotification(memberId, `${p.name} left "${g.name}"`, 'groupChanges'); } }
+    }catch(e){}
     try{ await setDoc(doc(db,'groups',groupId), { members: { [uid]: deleteField() } }, { merge:true }); }catch(e){}
   }
   async function extendGroupDeadline(groupId, newDeadlineMs){
@@ -1265,35 +1399,36 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   function renderPeopleRow(){
-    const el = document.getElementById('peopleRow');
-    if(!me){ el.innerHTML=''; return; }
-    const others = usersList.filter(u=>u.id!==me.id);
-    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-    el.innerHTML = chips.map(c=>{
-      const st = liveCache[c.id];
-      const studying = !!(st && st.studying);
-      const mins = liveMinutesFor(st);
-      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
-      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
-      return `
-        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
-          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
-          <span class="p-meta">
-            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
-            <span class="p-today">${fmtHM(mins)} today</span>
-          </span>
-        </div>
-      `;
-    }).join('');
-    el.querySelectorAll('.person-chip').forEach(chip=>{
-      chip.addEventListener('click', async ()=>{
-        const id = chip.dataset.id;
-        if(id === me.id){ viewingId = null; render(); return; }
-        viewingId = id;
-        await fetchFriendBoard(id);
-        render();
-      });
-    });
+    const shared = document.getElementById('peopleRow');
+    const live = document.getElementById('livePeopleRow');
+    const renderInto = (el, visible)=>{
+      if(!el) return;
+      if(!visible || !me){ el.innerHTML=''; el.style.display='none'; return; }
+      el.style.display=''; 
+      const others = usersList.filter(u=>u.id!==me.id);
+      const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
+      el.innerHTML = chips.map(c=>{
+        const st = liveCache[c.id];
+        const studying = !!(st && st.studying);
+        const mins = liveMinutesFor(st);
+        const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
+        const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
+        return `<div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${avatarInner}</span><span class="p-meta"><span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span><span class="p-today">${fmtHM(mins)} today</span></span></div>`;
+      }).join('');
+      el.querySelectorAll('.person-chip').forEach(chip=>chip.addEventListener('click', async ()=>{
+        const id=chip.dataset.id;
+        if(id===me.id){ viewingId=null; render(); return; }
+        viewingId=id; await fetchFriendBoard(id); render();
+      }));
+    };
+    renderInto(shared, currentScreen!=='live');
+    renderInto(live, currentScreen==='live' && !liveGroupUsersHidden);
+    const wrap=document.getElementById('sharedPeopleWrap');
+    if(wrap){
+      wrap.classList.toggle('collapsed', sharedPeopleCollapsed && currentScreen!=='live');
+      const b=document.getElementById('peopleCollapseBtn');
+      if(b) b.title = sharedPeopleCollapsed ? 'Show who\'s here' : 'Collapse';
+    }
   }
 
   function renderSnapRow(){
@@ -1343,7 +1478,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
   }
 
-  // ---------- helpers ----------
   function fmtDate(d){
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   }
@@ -1380,7 +1514,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!hhmm || hhmm.indexOf(':')===-1) return hhmm || '';
     let [h,m] = hhmm.split(':').map(Number);
     let total = h*60 + m + (minutes||0);
-    total = ((total % 1440) + 1440) % 1440; // wrap across midnight
+    total = ((total % 1440) + 1440) % 1440; 
     return `${pad(Math.floor(total/60))}:${pad(total%60)}`;
   }
   function timeRangeLabel(start, duration){
@@ -1417,10 +1551,35 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return s ? s.name : 'General';
   }
 
+  function getWeekStartDay(){ return Number.isInteger(state.weekStartDay) ? state.weekStartDay : 0; }
+  function parseDateKey(key){
+    const [y,m,d]=String(key||'').split('-').map(Number);
+    return (y&&m&&d) ? new Date(y,m-1,d) : new Date();
+  }
+  function weekStartKeyWithStart(date,startDay){
+    const d=new Date(date); d.setHours(0,0,0,0);
+    const diff=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-diff);
+    return fmtDate(d);
+  }
+  function migrateWeekStartSetting(oldStart,newStart){
+    if(oldStart===newStart) return;
+    (state.weeklyTemplate||[]).forEach(b=>{
+      if(!b.weekStart) return;
+      const oldWeek=parseDateKey(b.weekStart);
+      const offset=(Number(b.day||0)-oldStart+7)%7;
+      const actual=new Date(oldWeek); actual.setDate(actual.getDate()+offset);
+      b.weekStart=weekStartKeyWithStart(actual,newStart);
+    });
+    (state.weeklyGoals||[]).forEach(g=>{
+      if(g.weekStart) g.weekStart=weekStartKeyWithStart(parseDateKey(g.weekStart),newStart);
+    });
+  }
   function weekStartKey(date){
     const d = new Date(date);
     d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - d.getDay());
+    const start = getWeekStartDay();
+    const diff = (d.getDay() - start + 7) % 7;
+    d.setDate(d.getDate() - diff);
     return fmtDate(d);
   }
   function blocksForDate(date){
@@ -1441,7 +1600,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
   }
 
-  // ---------- shared "together" tasks (visible + tickable by everyone) ----------
   function sharedTasksKey(dateKey){ return 'shared-tasks:'+dateKey; }
   async function loadSharedTasks(dateKey){
     try{
@@ -1457,7 +1615,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return cur==='done' ? 'missed' : (cur==='missed' ? undefined : 'done');
   }
 
-  // ---------- tab navigation ----------
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1468,19 +1625,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
-      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
+      const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       render();
+      renderLiveGroupPanel();
+      renderPeopleRow();
     });
   });
   document.getElementById('fabAdd').style.display = 'none';
 
-  // ---------- TIMER LOGIC ----------
-  let timerMode = 'stopwatch'; // or 'countdown'
+  let timerMode = 'stopwatch'; 
   let timerRunning = false;
   let elapsedMs = 0;
   let countdownTotalMs = 60*60*1000;
+  let linkedTaskId = null;
+  let customFocusMin = 60;
   let tickHandle = null;
   let lastTick = null;
 
@@ -1488,68 +1648,105 @@ window.storage = storage; // keep the rest of the app's code unchanged
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
-    document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
+    const chips=document.getElementById('countdownLenChips');
+    if(chips) chips.style.display = mode==='countdown' && !timerRunning && elapsedMs===0 ? 'flex' : 'none';
+    if(mode!=='countdown') document.getElementById('customFocusWheel').style.display='none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
     updateRunningDeclutter();
   }
-  // Hide the irrelevant mode button / unselected lengths once a session is
-  // "committed" (started, or paused mid-session) — before that, and after a
-  // full Reset/Stop, both options stay visible so you can freely switch your mind.
+
   function updateRunningDeclutter(){
     const committed = timerRunning || elapsedMs > 0;
-    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
-    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
-    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
-      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
-    });
+    const modeSwitch=document.getElementById('timerModeSwitch');
+    const optionsRow=document.getElementById('timerOptionsRow');
+    const chips=document.getElementById('countdownLenChips');
+    if(modeSwitch) modeSwitch.classList.toggle('mode-collapsed', committed);
+    if(optionsRow) optionsRow.classList.remove('mode-collapsed');
+    if(chips) chips.style.display = (!committed && timerMode==='countdown') ? 'flex' : 'none';
+    const customWheel=document.getElementById('customFocusWheel');
+    if(customWheel){
+      customWheel.style.display = (!committed && timerMode==='countdown' && customWheel.innerHTML) ? 'block' : 'none';
+    }
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
-    if(timerRunning) return;
-    applyModeUI('stopwatch');
-    elapsedMs = 0;
-    renderTimerDigits();
+    if(timerRunning) return; applyModeUI('stopwatch'); elapsedMs=0; renderTimerDigits();
   });
   document.getElementById('modeCountdown').addEventListener('click', ()=>{
-    if(timerRunning) return;
-    applyModeUI('countdown');
-    elapsedMs = 0;
-    renderTimerDigits();
+    if(timerRunning) return; applyModeUI('countdown'); elapsedMs=0; renderTimerDigits(); updateRunningDeclutter();
   });
   document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       if(timerRunning) return;
       document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
       chip.classList.add('sel');
-      countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
+      if(chip.dataset.custom){
+        document.getElementById('customFocusWheel').style.display='block';
+        if(!window.__customFocusWheel) window.__customFocusWheel=createFocusDurationWheel(document.getElementById('customFocusWheel'), customFocusMin);
+        countdownTotalMs=customFocusMin*60000;
+      }else{
+        document.getElementById('customFocusWheel').style.display='none';
+        countdownTotalMs=parseInt(chip.dataset.min,10)*60000;
+      }
       renderTimerDigits();
     });
   });
-  document.getElementById('timerSubject').addEventListener('change', renderRing);
-
-  function renderFocusPresetNames(){
-    const names = state.focusPresetNames || ['10 markers','15 marker','recall','study'];
-    document.querySelectorAll('#countdownLenChips .dur-tag').forEach(el=>{
-      const i = parseInt(el.dataset.tagIdx, 10);
-      if(names[i]) el.textContent = names[i];
-    });
-  }
-  document.getElementById('renamePresetsBtn').addEventListener('click', (e)=>{
-    e.preventDefault();
-    const names = (state.focusPresetNames || ['10 markers','15 marker','recall','study']).slice();
-    const mins = [10,15,30,60];
-    for(let i=0;i<4;i++){
-      const val = prompt(`Label for the ${mins[i]} min preset:`, names[i]);
-      if(val===null) break; // cancel stops the whole rename walk
-      if(val.trim()) names[i] = val.trim();
-    }
-    state.focusPresetNames = names;
-    saveState();
-    renderFocusPresetNames();
-  });
-
+  document.getElementById('timerTaskPin').addEventListener('click', openTimerTaskPicker);
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
   document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
+
+  function createFocusDurationWheel(container, initialMin){
+    const total = Math.max(1, Math.min(24*60, Number(initialMin)||60));
+    const ih = Math.floor(total/60), im = total%60;
+    container.innerHTML = `<div class="wheel-picker"><div class="wheel-col" id="focus-h"></div><div class="wheel-col" id="focus-m"></div><div class="wheel-highlight"></div></div><div class="wheel-label" style="display:flex;gap:2px;"><span style="flex:1">Hour</span><span style="flex:1">Minute</span></div>`;
+    const hours=Array.from({length:25},(_,i)=>i), mins=Array.from({length:60},(_,i)=>pad(i));
+    let hVal=ih,mVal=im;
+    buildWheelColumn(container.querySelector('#focus-h'), hours, ih, v=>{hVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
+    buildWheelColumn(container.querySelector('#focus-m'), mins, im, v=>{mVal=Number(v); customFocusMin=Math.max(1,hVal*60+mVal); countdownTotalMs=customFocusMin*60000; renderTimerDigits();});
+    return {getValue:()=>Math.max(1,hVal*60+mVal)};
+  }
+  function renderTimerTaskLink(){
+    const label=document.getElementById('timerTaskLinkLabel'), btn=document.getElementById('timerTaskPin');
+    if(!label||!btn) return;
+    const task=blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId);
+    if(task){
+      label.textContent=`${task.label || subjectNameIn(task.subject,state)} · ${task.duration||30} min`;
+      btn.title=`Linked to: ${task.label || subjectNameIn(task.subject,state)} (${task.duration||30} min)`;
+    }else{
+      label.textContent='Not linked';
+      btn.title='Link this timer to a daily task';
+    }
+    btn.classList.toggle('linked',!!task);
+    if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
+      countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
+      customFocusMin=Math.max(1,Number(task.duration||30));
+      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+      document.getElementById('customFocusWheel').style.display='none';
+      renderTimerDigits();
+    }
+  }
+  function openTimerTaskPicker(){
+    if(!isViewingSelf()) return;
+    const today=new Date(), tasks=blocksForDateIn(state,today);
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link to today’s task</h3><div style="font-size:11px;color:var(--chalk-faint);margin:-8px 0 14px;">Optional — time logged here will update the task automatically.</div><div id="timer-task-options"></div><div class="modal-actions"><button class="btn btn-ghost" id="timer-task-skip">Skip / unlink</button></div></div>`;
+    document.body.appendChild(backdrop); const wrap=backdrop.querySelector('#timer-task-options');
+    wrap.innerHTML=tasks.length ? tasks.map(t=>`<button type="button" class="btn btn-ghost timer-task-option" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;">${escapeHtml(t.label||subjectNameIn(t.subject,state))}<span style="float:right;color:var(--chalk-faint);">${t.duration||30} min</span></button>`).join('') : `<div class="empty" style="padding:20px 0;">No tasks scheduled for today.</div>`;
+    function close(){backdrop.remove();}
+    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#timer-task-skip').addEventListener('click',()=>{linkedTaskId=null;renderTimerTaskLink();close();});
+    wrap.querySelectorAll('.timer-task-option').forEach(b=>b.addEventListener('click',()=>{
+      linkedTaskId=b.dataset.id;
+      const task=tasks.find(t=>t.id===linkedTaskId);
+      if(task && timerMode==='countdown' && !timerRunning && elapsedMs===0){
+        countdownTotalMs=Math.max(1,Number(task.duration||30))*60000;
+        customFocusMin=Math.max(1,Number(task.duration||30));
+        document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+        document.getElementById('customFocusWheel').style.display='none';
+      }
+      renderTimerTaskLink(); close();
+    }));
+  }
 
   const RING_R = 100;
   const RING_C = 2 * Math.PI * RING_R;
@@ -1595,75 +1792,86 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const ring = document.getElementById('ringProgress');
     ring.style.strokeDashoffset = RING_C * (1 - fraction);
     if(me){
-      const subjectId = document.getElementById('timerSubject').value;
-      ring.style.stroke = subjectColorIn(subjectId, state);
+      const task=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
+      ring.style.stroke = task ? subjectColorIn(task.subject,state) : 'var(--accent)';
     }
     document.getElementById('ringOuter').classList.toggle('running', timerRunning);
   }
 
-  let sessionStartClock = null; // real wall-clock time the current (possibly paused/resumed) session first began
+  let sessionStartClock = null;
 
-  // ---------- distraction-free focus mode ----------
   let wakeLockSentinel = null;
   function updateFocusToggleVisibility(){
     const btn = document.getElementById('focusToggleBtn');
-    if(btn) btn.classList.toggle('visible', timerRunning);
-    if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
+    if(btn) btn.classList.toggle('visible', timerRunning && !document.body.classList.contains('focus-active'));
+    if(!timerRunning) exitFocusMode(); 
   }
   async function enterFocusMode(){
-    if(!timerRunning) return; // only enterable once a session is actually running
+    if(!timerRunning) return; 
     document.body.classList.add('focus-active');
+    document.getElementById('timerLinkFloatWrap')?.style.setProperty('display','none','important');
+    document.getElementById('focusToggleBtn')?.style.setProperty('display','none','important');
     if('wakeLock' in navigator){
-      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
+      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){}
     }
   }
   function exitFocusMode(){
     document.body.classList.remove('focus-active');
+    document.getElementById('timerLinkFloatWrap')?.style.removeProperty('display');
+    document.getElementById('focusToggleBtn')?.style.removeProperty('display');
+    updateFocusToggleVisibility();
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
   document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
     e.preventDefault();
-    e.stopPropagation(); // otherwise this same tap bubbles to the body listener below and instantly exits again
+    e.stopPropagation(); 
     enterFocusMode();
   });
   document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
     e.preventDefault();
-    exitFocusMode(); // just brings the screen back — never touches the running timer
+    exitFocusMode(); 
   });
-  // tap anywhere to minimize back to the main screen — the timer keeps running in the background
   document.body.addEventListener('click', (e)=>{
     if(!document.body.classList.contains('focus-active')) return;
-    if(e.target.closest('.timer-controls')) return; // let Start/Pause/Reset keep working normally
+    if(e.target.closest('.timer-controls')) return;
     exitFocusMode();
   });
 
   function notifyFirstSessionOfDayIfNeeded(){
-    if(elapsedMs > 0) return; // resuming from pause, not a fresh start
+    if(elapsedMs > 0) return;
     const todayKey = fmtDate(new Date());
     const alreadyLoggedToday = (state.sessions[todayKey]||[]).length > 0;
     if(alreadyLoggedToday) return;
     const flagKey = 'sb-notified-first-session-'+todayKey;
     if(localStorage.getItem(flagKey)) return;
     localStorage.setItem(flagKey, '1');
-    notifyOthers(`${me.name} started studying today 📚`);
+    notifyOthers(`${me.name} started studying today 📚`, null, 'studyStart');
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
+      const isFreshSessionStart = !sessionStartClock;
       timerRunning = true;
       lastTick = Date.now();
       if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
-      const subjectId = document.getElementById('timerSubject').value;
+      const linkedTask=linkedTaskId ? blocksForDateIn(state,new Date()).find(b=>b.id===linkedTaskId) : null;
+      const subjectId = linkedTask ? linkedTask.subject : '';
       setLiveStatus({
-        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
-        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+        studying:true, subject:subjectId, subjectName: subjectId ? subjectNameIn(subjectId, state) : '',
+        linkedTaskId: linkedTaskId || null, mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
       startSnapshotScheduler();
+      document.getElementById('customFocusWheel').style.display='none';
+      document.getElementById('countdownLenChips').style.display='none';
+      document.getElementById('timerModeSwitch').classList.add('mode-collapsed');
       updateFocusToggleVisibility();
       updateRunningDeclutter();
+      if(isFreshSessionStart) notifyOthers(`${me.name} started studying 📚`, null, 'studyStart');
       notifyFirstSessionOfDayIfNeeded();
+      writeTimerSchedule(true);
+      armLocalTimerEndAlert();
     } else {
       pauseTimer();
     }
@@ -1678,8 +1886,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
   }
-  const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
+  const MAX_SESSION_MS = 4 * 60 * 60 * 1000; 
   function tick(){
     const now = Date.now();
     elapsedMs += (now - lastTick);
@@ -1700,7 +1910,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     checkMilestone();
   }
   document.getElementById('resetBtn').addEventListener('click', ()=>{
-    if(elapsedMs > 3000){ // log if meaningful duration and not already finished
+    if(elapsedMs > 3000){
       finishSession(false);
     } else {
       hardReset();
@@ -1751,7 +1961,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     };
     let streak = 0;
     let cursor = new Date();
-    // if today hasn't hit the goal yet, start counting from yesterday instead
     if(minsOnFor(cursor) < goal) cursor.setDate(cursor.getDate()-1);
     while(minsOnFor(cursor) >= goal){
       streak++;
@@ -1777,9 +1986,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     card.style.display = 'block';
     const self = isViewingSelf();
     const whoLabel = self ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
-    // Privacy rule: others can see hours done and streak, never the exact target —
-    // showing done+target together would let them work out the pending gap by
-    // subtraction. Only the person themselves sees their own target/pending.
     card.innerHTML = `
       ${whoLabel}
       <div class="row1">
@@ -1803,6 +2009,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     elapsedMs = 0;
     sessionStartClock = null;
     document.getElementById('startBtn').textContent = 'Start';
+    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
+    if(timerMode==='countdown') document.getElementById('countdownLenChips').style.display='flex';
+    document.getElementById('customFocusWheel').style.display='none';
     setStatusText('ready');
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
@@ -1810,14 +2019,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
   }
   function finishSession(completed, reason){
     timerRunning = false;
     clearInterval(tickHandle);
+    clearLocalTimerEndAlert();
+    writeTimerSchedule(false);
     const startedAtMs = sessionStartClock || (Date.now() - elapsedMs);
     const key = fmtDate(new Date(startedAtMs));
     if(!state.sessions[key]) state.sessions[key] = [];
-    const subjectId = document.getElementById('timerSubject').value;
+    const linkedTask=linkedTaskId ? blocksForDateIn(state,parseDateKey(key)).find(b=>b.id===linkedTaskId) : null;
+    const subjectId = linkedTask ? linkedTask.subject : '';
     const durationMin = Math.round(elapsedMs/60000 * 10)/10;
     const endedAt = Date.now();
     let justLoggedSession = null;
@@ -1829,10 +2043,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
         duration: durationMin,
         mode: timerMode,
         completed: completed,
+        linkedTaskId: linkedTaskId || null,
         startedAt: startedAtMs,
         endedAt: endedAt
       };
       state.sessions[key].push(justLoggedSession);
+      updateLinkedTaskProgress(key, justLoggedSession.linkedTaskId);
       saveState();
       const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
       if(dailyGoalMin > 0){
@@ -1841,7 +2057,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const flagKey = 'sb-notified-goal-'+key;
           if(!localStorage.getItem(flagKey)){
             localStorage.setItem(flagKey, '1');
-            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+            notifyOthers(`${me.name} hit their daily goal today 🔥`, null, 'studyStart');
           }
         }
       }
@@ -1850,9 +2066,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
+    document.getElementById('timerModeSwitch').classList.remove('mode-collapsed');
+    document.getElementById('customFocusWheel').style.display='none';
+    document.getElementById('countdownLenChips').style.display = timerMode==='countdown' ? 'flex' : 'none';
     exitFocusMode();
     renderTimerDigits();
     renderSessions();
+    renderTaskList();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
@@ -1863,510 +2083,28 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   function promptSessionNote(session, dateKey){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const friend = !isViewingSelf() ? usersList.find(u=>u.id===viewingId) : null;
-    const recapHtml = friend ? `
-        <div class="recap-row">
-          <div class="recap-col mine">
-            <div class="recap-who">You</div>
-            <div class="recap-time">${fmtHM(todayTotalMinutes())}</div>
-            <div class="recap-sub">today</div>
-          </div>
-          <div class="recap-col friend">
-            <div class="recap-who">${escapeHtml(friend.name)}</div>
-            <div class="recap-time">${fmtHM(liveMinutesFor(liveCache[friend.id]))}</div>
-            <div class="recap-sub">today</div>
-          </div>
-        </div>` : '';
-    backdrop.innerHTML = `
-      <div class="modal">
-        <h3>What did you cover?</h3>
-        <div class="field-row">
-          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
-          <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
-          <div id="note-error" style="display:none; color:var(--danger); font-size:11.5px; margin-top:8px;">A quick note is required to log this session — it's how you track real progress.</div>
-        </div>
-        ${recapHtml}
-        <div class="modal-actions">
-          <button class="btn btn-primary" id="note-save" style="width:100%;">Save & continue</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('#note-save').addEventListener('click', async ()=>{
-      const text = backdrop.querySelector('#note-input').value.trim();
-      if(!text){
-        backdrop.querySelector('#note-error').style.display = 'block';
-        backdrop.querySelector('#note-input').focus();
-        return;
-      }
-      const list = state.sessions[dateKey] || [];
-      const s = list.find(x=>x.id===session.id);
-      if(s) s.note = text;
-      await flushStateNow();
-      renderSessions();
-      close();
-    });
+    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
+    const task= session.linkedTaskId ? blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===session.linkedTaskId) : null;
+    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>What did you do?</h3><div class="field-row"><label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min${task?' · '+escapeHtml(task.label||subjectNameIn(task.subject,state)):''}</label><textarea id="note-input" rows="3" placeholder="Optional note — you can skip this" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;"></textarea></div><div class="modal-actions"><button class="btn btn-ghost" id="note-skip">Skip</button><button class="btn btn-primary" id="note-save">Save</button></div></div>`;
+    document.body.appendChild(backdrop); function close(){backdrop.remove();}
+    backdrop.querySelector('.close-x').addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#note-skip').addEventListener('click',close);
+    backdrop.querySelector('#note-save').addEventListener('click',async()=>{const text=backdrop.querySelector('#note-input').value.trim(); const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(s&&text)s.note=text; await flushStateNow(); renderSessions(); close();});
+  }
+  function updateLinkedTaskProgress(dateKey, taskId){
+    if(!taskId) return;
+    const task=blocksForDateIn(state,parseDateKey(dateKey)).find(b=>b.id===taskId); if(!task) return;
+    const total=(state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
+    const target=Number(task.duration||30);
+    state.completion[dateKey+'|'+task.id] = total >= target ? 'done' : undefined;
+    if(state.completion[dateKey+'|'+task.id]===undefined) delete state.completion[dateKey+'|'+task.id];
+  }
+  function linkedTaskProgress(data,dateKey,task){
+    const target=Number(task.duration||30);
+    const logged=((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===task.id).reduce((sum,s)=>sum+(s.duration||0),0);
+    return {logged,target,pct:target?Math.min(100,Math.round(logged/target*100)):0,done:logged>=target};
   }
 
-  // ---------- live snapshot sharing: settings, camera engine, milestones, nudges ----------
-  const SNAP_SETTINGS_KEY = 'study-board-snap-settings';
-  function loadSnapSettings(){
-    let s = { enabled:false, facing:'user', freqMs:60000 };
-    try{
-      const raw = localStorage.getItem(SNAP_SETTINGS_KEY);
-      if(raw) s = Object.assign(s, JSON.parse(raw));
-    }catch(e){}
-    return s;
-  }
-  function saveSnapSettings(s){
-    try{ localStorage.setItem(SNAP_SETTINGS_KEY, JSON.stringify(s)); }catch(e){}
-  }
-  let snapSettings = loadSnapSettings();
-
-  let camPausedManually = false;
-  let camCaptureIntervalHandle = null;
-  let camBusy = false; // true only for the brief moment we're actually grabbing a frame
-
-  function captureOneFrame(isRetry){
-    if(!snapSettings.enabled || camPausedManually || !timerRunning || !me || camBusy) return;
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-    camBusy = true;
-    navigator.mediaDevices.getUserMedia({
-      video:{ facingMode: snapSettings.facing, width:{ideal:320}, height:{ideal:320} },
-      audio:false
-    })
-      .then(stream=>{
-        const video = document.createElement('video');
-        video.muted = true;
-        video.playsInline = true;
-        video.srcObject = stream;
-        let settled = false;
-        const cleanup = ()=>{ stream.getTracks().forEach(t=>t.stop()); camBusy = false; };
-        const finishFail = ()=>{
-          if(settled) return; settled = true;
-          cleanup();
-          // one quick retry — real camera hardware sometimes needs a second attempt to warm up
-          if(!isRetry) setTimeout(()=> captureOneFrame(true), 500);
-        };
-        const grabFrame = ()=>{
-          if(settled) return; settled = true;
-          try{
-            const size = 220;
-            const canvas = document.createElement('canvas');
-            canvas.width = size; canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            const vw = video.videoWidth, vh = video.videoHeight;
-            const s = Math.min(vw, vh);
-            ctx.drawImage(video, (vw-s)/2, (vh-s)/2, s, s, 0, 0, size, size);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
-            setLiveStatus({ snapshot: dataUrl, snapshotAt: Date.now(), freqMs: snapSettings.freqMs });
-            renderSnapRow();
-          }catch(e){ console.warn('snapshot capture failed', e); }
-          cleanup();
-        };
-        video.onloadedmetadata = ()=>{
-          video.play().then(()=>{
-            // poll until the sensor has actually produced a usable frame, instead of guessing a fixed delay
-            const startWait = Date.now();
-            const waitForFrame = ()=>{
-              if(settled) return;
-              if(video.readyState >= 2 && video.videoWidth > 0){
-                grabFrame();
-              } else if(Date.now() - startWait > 2500){
-                finishFail(); // gave the camera enough time — bail and retry shortly
-              } else {
-                requestAnimationFrame(waitForFrame);
-              }
-            };
-            waitForFrame();
-          }).catch(finishFail);
-        };
-        video.onerror = finishFail;
-      })
-      .catch(err=>{
-        console.warn('camera unavailable', err);
-        camBusy = false;
-        if(!isRetry) setTimeout(()=> captureOneFrame(true), 800);
-      });
-  }
-
-  function startSnapshotScheduler(){
-    if(!snapSettings.enabled || camPausedManually || !timerRunning) return;
-    if(camCaptureIntervalHandle) return; // already scheduled
-    captureOneFrame(); // grab one right away
-    camCaptureIntervalHandle = setInterval(()=>captureOneFrame(false), snapSettings.freqMs);
-  }
-  function stopSnapshotScheduler(){
-    if(camCaptureIntervalHandle){ clearInterval(camCaptureIntervalHandle); camCaptureIntervalHandle = null; }
-  }
-  document.addEventListener('visibilitychange', ()=>{
-    if(document.hidden){ stopSnapshotScheduler(); }
-    else if(timerRunning){ startSnapshotScheduler(); }
-  });
-
-  function isSnapshotStale(st){
-    if(!st || !st.snapshotAt) return false;
-    // scale the stale window to whatever frequency that person actually broadcasts at,
-    // so a 2 or 5 minute setting doesn't get flagged as "reconnecting" between every shot
-    const threshold = Math.max(3*60*1000, (st.freqMs || 60000) * 2.5);
-    return (Date.now() - st.snapshotAt) > threshold;
-  }
-  function timeAgoShort(ts){
-    const m = Math.max(1, Math.round((Date.now()-ts)/60000));
-    return m + 'm ago';
-  }
-
-  // ---------- lightweight nudge (👋) ----------
-  async function sendNudge(targetId){
-    if(!me || !targetId) return;
-    try{ await setDoc(doc(db, 'nudges', targetId), { from: me.id, fromName: me.name, ts: Date.now() }); }catch(e){}
-  }
-  let lastSeenNudgeTs = 0;
-  let nudgeUnsub = null;
-  function showNudgeToast(text){
-    const t = document.createElement('div');
-    t.className = 'nudge-toast';
-    t.textContent = text;
-    document.body.appendChild(t);
-    requestAnimationFrame(()=> t.classList.add('show'));
-    setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(), 350); }, 3200);
-  }
-  function subscribeSelfNudges(){
-    if(nudgeUnsub) nudgeUnsub();
-    nudgeUnsub = onSnapshot(doc(db, 'nudges', me.id), (snap)=>{
-      if(!snap.exists()) return;
-      const n = snap.data();
-      if(n.ts && n.ts > lastSeenNudgeTs){
-        lastSeenNudgeTs = n.ts;
-        showNudgeToast(`👋 ${n.fromName || 'A friend'} is cheering you on`);
-      }
-    }, ()=>{});
-  }
-
-  // ---------- shared milestone confetti ----------
-  function fireConfetti(together){
-    const colors = together ? ['#22D3EE','#FF5A5F','#FFFFFF'] : ['#22D3EE','#7FB3D5','#8FCB9B'];
-    const count = together ? 36 : 22;
-    for(let i=0;i<count;i++){
-      const p = document.createElement('div');
-      p.className = 'confetti-piece';
-      p.style.left = (Math.random()*100)+'vw';
-      p.style.background = colors[i % colors.length];
-      p.style.animationDuration = (1.6 + Math.random()*1.2)+'s';
-      p.style.opacity = (0.7 + Math.random()*0.3).toString();
-      document.body.appendChild(p);
-      setTimeout(()=> p.remove(), 3200);
-    }
-    const toast = document.createElement('div');
-    toast.className = 'milestone-toast';
-    toast.textContent = together ? '🎉 You and your study buddy just crossed an hour together!' : '🎉 Another hour down — keep going!';
-    document.body.appendChild(toast);
-    requestAnimationFrame(()=> toast.classList.add('show'));
-    setTimeout(()=>{ toast.classList.remove('show'); setTimeout(()=> toast.remove(), 400); }, 2600);
-  }
-  let lastMilestoneHourLocal = 0;
-  function checkMilestone(){
-    const hourBucket = Math.floor(elapsedMs/3600000);
-    if(hourBucket <= lastMilestoneHourLocal || hourBucket < 1) return;
-    lastMilestoneHourLocal = hourBucket;
-    setLiveStatus({ lastMilestoneHour: hourBucket, lastMilestoneAt: Date.now() });
-    const friendSt = !isViewingSelf() ? liveCache[viewingId] : null;
-    const together = !!(friendSt && friendSt.lastMilestoneHour===hourBucket && friendSt.lastMilestoneAt && (Date.now()-friendSt.lastMilestoneAt < 3*60000));
-    fireConfetti(together);
-  }
-
-  // ---------- live "studying now" presence (surfaced on the person chips at the top) ----------
-  let liveCache = {};
-  let livePollHandle = null;
-  let liveTickHandle = null;
-  async function setLiveStatus(patch){
-    if(!me) return;
-    const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
-    liveCache[me.id] = merged;
-    renderPeopleRow(); renderSnapRow();
-    updateFriendTimerCard();
-    try{
-      await setDoc(doc(db, 'liveStatus', me.id), merged, { merge:true });
-    }catch(e){ console.error('live status failed', e); }
-  }
-  async function getLiveStatus(uid){
-    try{
-      const snap = await getDoc(doc(db, 'liveStatus', uid));
-      return snap.exists() ? snap.data() : null;
-    }catch(e){ return null; }
-  }
-  async function refreshLiveStatuses(){
-    if(!me) return;
-    for(const u of usersList){ liveCache[u.id] = await getLiveStatus(u.id); }
-    renderPeopleRow(); renderSnapRow();
-    updateFriendTimerCard();
-    refreshBellBadge();
-  }
-  function liveMinutesFor(st){
-    let mins = (st && st.todayTotalMin) || 0;
-    if(st && st.studying && st.startedAt){
-      mins += ((st.baseElapsedMs||0) + (Date.now()-st.startedAt)) / 60000;
-    }
-    return mins;
-  }
-  function updateFriendTimerCard(){
-    if(currentScreen!=='timer' || isViewingSelf()) return;
-    const friend = usersList.find(u=>u.id===viewingId);
-    const card = document.getElementById('friendTimerBanner');
-    if(!friend || !card) return;
-    const st = liveCache[friend.id];
-    const studying = !!(st && st.studying);
-    const mins = liveMinutesFor(st);
-    card.innerHTML = `
-      <div class="who">${studying?'🔴 ':''}${escapeHtml(friend.name)}</div>
-      <div class="lbl">${studying ? (st.label || st.subjectName || 'studying now') : 'not studying right now'}</div>
-      <div class="stat">${fmtHM(mins)}</div>
-      <div class="lbl">studied today</div>
-    `;
-  }
-  function startLiveTimers(){
-    stopLiveTimers();
-    refreshLiveStatuses();
-    livePollHandle = setInterval(refreshLiveStatuses, 6000);
-    liveTickHandle = setInterval(()=>{ renderPeopleRow(); renderSnapRow(); updateFriendTimerCard(); renderGoalCard(); }, 1000);
-  }
-  function stopLiveTimers(){
-    if(livePollHandle){ clearInterval(livePollHandle); livePollHandle = null; }
-    if(liveTickHandle){ clearInterval(liveTickHandle); liveTickHandle = null; }
-  }
-
-  // ---------- real-time self sync: recover a running timer after reload/crash/offline,
-  // and mirror Start/Pause/Stop across every device signed into the same account ----------
-  let selfLiveUnsub = null;
-  function subscribeSelfLiveStatus(){
-    if(selfLiveUnsub) selfLiveUnsub();
-    selfLiveUnsub = onSnapshot(doc(db, 'liveStatus', me.id), (snap)=>{
-      const st = snap.exists() ? snap.data() : null;
-      liveCache[me.id] = st;
-      reconcileLocalTimerFromRemote(st);
-      renderPeopleRow(); renderSnapRow();
-      updateFriendTimerCard();
-    }, (err)=> console.warn('self live status listener failed', err));
-  }
-  function reconcileLocalTimerFromRemote(st){
-    if(!st || !me) return;
-    if(st.studying && st.startedAt){
-      // Remote says a session is running (could be: this device after a reload, or another
-      // device that just pressed Start/Resume). Adopt it if we aren't already tracking this
-      // exact session locally.
-      if(!timerRunning || sessionStartClock !== st.startedAt){
-        applyModeUI(st.mode || 'stopwatch');
-        if(st.totalMs) countdownTotalMs = st.totalMs;
-        sessionStartClock = st.startedAt;
-        elapsedMs = (st.baseElapsedMs||0) + (Date.now() - st.startedAt);
-        timerRunning = true;
-        lastTick = Date.now();
-        clearInterval(tickHandle);
-        tickHandle = setInterval(tick, 250);
-        if(st.subject) document.getElementById('timerSubject').value = st.subject;
-        document.getElementById('startBtn').textContent = 'Pause';
-        setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
-        renderTimerDigits();
-        updateRunningDeclutter();
-      }
-    } else {
-      // Remote says nothing is running. If this device still thinks it's running, another
-      // device (or this one, on an earlier tab) paused/stopped/finished it — follow suit
-      // without writing back again (avoids an infinite echo loop).
-      if(timerRunning){
-        timerRunning = false;
-        clearInterval(tickHandle);
-        elapsedMs = st.baseElapsedMs || 0;
-        sessionStartClock = null;
-        document.getElementById('startBtn').textContent = elapsedMs>0 ? 'Resume' : 'Start';
-        setStatusText(elapsedMs>0 ? 'paused (stopped on another device)' : 'ready');
-        renderTimerDigits();
-        updateRunningDeclutter();
-      }
-    }
-  }
-
-  // ---------- task comments (reminders / motivation) ----------
-  function commentsIdFor(taskId, ownerId){
-    return ownerId ? `p_${ownerId}_${taskId}` : `s_${taskId}`;
-  }
-  async function loadComments(cid){
-    try{
-      const snap = await getDoc(doc(db, 'comments', cid));
-      return snap.exists() ? (snap.data().items || []) : [];
-    }catch(e){ return []; }
-  }
-  async function addComment(cid, text){
-    const items = await loadComments(cid);
-    items.push({ by: me.id, name: me.name, text, ts: Date.now() });
-    try{ await setDoc(doc(db, 'comments', cid), { items }); }
-    catch(e){ console.error('comment failed', e); }
-  }
-  async function checkUnread(btn){
-    const cid = btn.dataset.cid;
-    const items = await loadComments(cid);
-    if(!items.length) return;
-    const lastRead = myReads[cid] || 0;
-    const unread = items.some(c => c.ts > lastRead && c.by !== me.id);
-    if(unread) btn.classList.add('has-unread');
-  }
-  function attachCommentButtons(el){
-    el.querySelectorAll('.cmt-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=> openCommentsModal(btn.dataset.cid, btn.dataset.title, btn));
-      checkUnread(btn);
-    });
-  }
-  async function openCommentsModal(cid, title, btnEl){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
-        <button class="close-x">×</button>
-        <h3>${escapeHtml(title)}</h3>
-        <div id="cmt-list" style="flex:1; overflow-y:auto; margin-bottom:14px; max-height:45vh;"></div>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="cmt-input" placeholder="Send a reminder or nudge…" style="flex:1;">
-          <button class="btn btn-primary" id="cmt-send" style="flex:0 0 auto; padding:0 18px;">Send</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    await markRead(cid);
-    if(btnEl) btnEl.classList.remove('has-unread');
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    async function refresh(){
-      const items = await loadComments(cid);
-      const list = backdrop.querySelector('#cmt-list');
-      list.innerHTML = items.length ? items.map(c=>`
-        <div class="cmt-item"><b>${escapeHtml(c.name)}</b>: ${escapeHtml(c.text)}</div>
-      `).join('') : `<div style="color:var(--chalk-faint); font-size:12px;">No messages yet — send the first nudge.</div>`;
-      list.scrollTop = list.scrollHeight;
-    }
-    await refresh();
-    async function send(){
-      const input = backdrop.querySelector('#cmt-input');
-      const text = input.value.trim();
-      if(!text) return;
-      input.value = '';
-      await addComment(cid, text);
-      await refresh();
-      notifyForComment(cid, title, text);
-    }
-    backdrop.querySelector('#cmt-send').addEventListener('click', send);
-    backdrop.querySelector('#cmt-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') send(); });
-  }
-
-  function renderSubjectOptions(selectEl, selectedId){
-    selectEl.innerHTML = '';
-    state.subjects.forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = s.name;
-      if(s.id === selectedId) opt.selected = true;
-      selectEl.appendChild(opt);
-    });
-  }
-
-  function renderSessions(){
-    const key = fmtDate(new Date());
-    const el = document.getElementById('sessionList');
-    const titleEl = document.getElementById('sessionListTitle');
-    const data = activeData();
-    const editable = isViewingSelf();
-    const friendName = !editable ? ((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend') : null;
-    if(titleEl) titleEl.textContent = editable ? "Today's sessions" : `${friendName}'s sessions today`;
-
-    const list = (data.sessions && data.sessions[key]) || [];
-    if(!list.length){
-      el.innerHTML = `<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>${editable ? "today's first block starts with you" : escapeHtml(friendName)+" hasn't logged anything today"}</div>`;
-      return;
-    }
-    el.innerHTML = list.slice().reverse().map(s=>{
-      const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
-      return `
-        <div class="session-item2">
-          <div class="row1">
-            <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
-            <span style="display:flex; align-items:center; gap:6px;">
-              <span class="dur-badge">${fmtHM(s.duration)}${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
-              ${editable ? `<button type="button" class="task-edit sess-edit" data-id="${s.id}" title="Edit session">✏️</button>` : ''}
-            </span>
-          </div>
-          ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
-          ${period ? `<div class="period">${period}</div>` : ''}
-          ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
-        </div>
-      `;
-    }).join('');
-    if(!editable) return;
-    el.querySelectorAll('.sess-edit').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const s = list.find(x=>x.id===btn.dataset.id);
-        if(s) openEditSessionModal(s, key);
-      });
-    });
-  }
-
-  function openEditSessionModal(session, dateKey){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal">
-        <button class="close-x">×</button>
-        <h3>Edit session</h3>
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="es-subject"></select>
-        </div>
-        <div class="field-row">
-          <label>Duration (minutes)</label>
-          <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
-        </div>
-        <div class="field-row">
-          <label>Note</label>
-          <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(session.note||'')}</textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button>
-          <button class="btn btn-primary" id="es-save">Save</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#es-subject'), session.subject);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-    backdrop.querySelector('#es-delete').addEventListener('click', async ()=>{
-      const key = fmtDate(new Date());
-      state.sessions[key] = (state.sessions[key]||[]).filter(s=>s.id!==session.id);
-      await flushStateNow();
-      renderSessions();
-      renderGoalCard();
-      renderStudyChart();
-      close();
-    });
-    backdrop.querySelector('#es-save').addEventListener('click', async ()=>{
-      const newSubject = backdrop.querySelector('#es-subject').value;
-      const newDuration = Math.max(1, parseInt(backdrop.querySelector('#es-duration').value||'1',10));
-      const newNote = backdrop.querySelector('#es-note').value.trim();
-      const key = fmtDate(new Date());
-      const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
-      await flushStateNow();
-      renderSessions();
-      renderGoalCard();
-      renderStudyChart();
-      close();
-    });
-  }
-
-  // ---------- TODAY SCREEN ----------
   function renderDayScroller(){
     const el = document.getElementById('dayScroller');
     el.innerHTML='';
@@ -2382,1093 +2120,36 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
   async function renderTaskList(){
-    const el = document.getElementById('taskList');
-    const dateKey = fmtDate(selectedDate);
-    const myBlocks = blocksForDateIn(state, selectedDate);
-    const sharedTasks = await loadSharedTasks(dateKey);
-
-    let html = '';
-
-    // ---- my tasks ----
-    html += `<h3 class="section-title">My tasks</h3>`;
-    if(myBlocks.length===0 && sharedTasks.length===0){
-      html += `<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>tap + to add a task for this day</div>`;
-    } else if(myBlocks.length===0){
-      html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">no tasks of your own yet — tap +</div>`;
-    } else {
-      html += myBlocks.map(b=>{
-        const compKey = dateKey+'|'+b.id;
-        const status = state.completion[compKey]; // undefined | 'done' | 'missed'
-        return `
-          <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-            <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
-            <div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
-            <div class="body">
-              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
-              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
-              ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
-            </div>
-            <button class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬</button>
-            <button class="task-edit" data-id="${b.id}" data-source="${b.source}" title="Edit">✏️</button>
-            <button class="task-del" data-id="${b.id}" data-source="${b.source}">×</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // ---- shared "together" tasks ----
-    if(sharedTasks.length){
-      html += `<h3 class="section-title">Doing together</h3>`;
-      html += sharedTasks.map(t=>{
-        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
-        const rowHtml = people.map(p=>{
-          const st = (t.completions||{})[p.id];
-          const mine = p.id===me.id;
-          return `<div class="who-chip ${st||''} ${mine?'mine':''}" data-shared-task="${mine? t.id : ''}" title="${p.name}">
-            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
-            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
-          </div>`;
-        }).join('');
-        return `
-          <div class="task-card shared">
-            <div class="time">${timeColHtml(t.start, t.duration||30)}</div>
-            <div class="body">
-              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
-              <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
-              <div class="who-row">${rowHtml}</div>
-            </div>
-            ${t.createdBy===me.id ? `<button class="task-del" data-shared-del="${t.id}">×</button>` : ''}
-            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // ---- friends' tasks, read-only ----
-    const friends = usersList.filter(u=>u.id!==me.id);
-    for(const u of friends){
-      await fetchFriendBoard(u.id);
-      const fb = friendCache[u.id] || {};
-      const fBlocks = blocksForDateIn(fb, selectedDate);
-      html += `<h3 class="section-title">${u.name}'s tasks</h3>`;
-      if(fBlocks.length===0){
-        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
-      } else {
-        html += fBlocks.map(b=>{
-          const compKey = dateKey+'|'+b.id;
-          const status = (fb.completion||{})[compKey];
-          return `
-            <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-              <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
-              <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
-              <div class="body">
-                <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
-                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${subjectNameIn(b.subject, fb)} · ${b.duration||30} min</div>
-              </div>
-              <button class="cmt-btn" data-cid="${commentsIdFor(b.id, u.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,fb))}">💬</button>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    el.innerHTML = html;
-
-    // ---- handlers: my own tasks ----
-    el.querySelectorAll('.check').forEach(c=>{
-      if(c.style.pointerEvents==='none') return;
-      c.addEventListener('click', ()=>{
-        const k = c.dataset.key;
-        state.completion[k] = nextStatus(state.completion[k]);
-        saveState();
-        renderTaskList();
-        renderWeeklyGoalsList();
-      });
-    });
-    el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        const dateKey = fmtDate(selectedDate);
-        const block = source==='template'
-          ? state.weeklyTemplate.find(b=>b.id===id)
-          : (state.dailyExtra[dateKey]||[]).find(b=>b.id===id);
-        if(block) openAddModal(source==='template' ? 'template' : 'extra', block);
-      });
-    });
-    el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        if(source==='template'){
-          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
-        } else {
-          const key = fmtDate(selectedDate);
-          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
-        }
-        saveState();
-        renderTaskList();
-        renderWeeklyGoalsList();
-      });
-    });
-
-    // ---- handlers: shared "together" task — tick your own status ----
-    el.querySelectorAll('.who-chip[data-shared-task]').forEach(chip=>{
-      const taskId = chip.dataset.sharedTask;
-      if(!taskId) return; // not your own avatar — read only
-      chip.addEventListener('click', async ()=>{
-        const list = await loadSharedTasks(dateKey);
-        const t = list.find(x=>x.id===taskId);
-        if(!t) return;
-        t.completions = t.completions || {};
-        t.completions[me.id] = nextStatus(t.completions[me.id]);
-        await saveSharedTasks(dateKey, list);
-        renderTaskList();
-      });
-    });
-    el.querySelectorAll('.task-del[data-shared-del]').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const list = await loadSharedTasks(dateKey);
-        await saveSharedTasks(dateKey, list.filter(x=>x.id!==btn.dataset.sharedDel));
-        renderTaskList();
-      });
-    });
-
+    const el=document.getElementById('taskList'); const dateKey=fmtDate(selectedDate);
+    const data=activeData();
+    const blocks=blocksForDateIn(data,selectedDate);
+    let html=`<h3 class="section-title">${isViewingSelf()?'My tasks':escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name||'User')+'’s tasks'}</h3>`;
+    if(!blocks.length){ html+=`<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${isViewingSelf()?'tap + to add a task for this day':''}</div>`; el.innerHTML=html; return; }
+    html+=blocks.map(b=>{
+      const compKey=dateKey+'|'+b.id, status=(data.completion||{})[compKey];
+      const prog=linkedTaskProgress(data,dateKey,b);
+      const hasLinked=(data.sessions||{})[dateKey]?.some(s=>s.linkedTaskId===b.id);
+      const pct = status==='done' ? 100 : prog.pct;
+      const progressLabel = hasLinked ? `${prog.pct}%` : (status==='done' ? '100%' : '');
+      const progressVisual = `<div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>`;
+      return `<div class="task-card progress-row ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="--progress:${pct}%;"><div class="time">${timeColHtml(b.start,b.duration||30)}</div>${progressVisual}<div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,data))}<span class="progress-label">${progressLabel}</span></div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,data)}"></span>${escapeHtml(subjectNameIn(b.subject,data))} · ${b.duration||30} min${hasLinked?' · '+prog.logged+' min logged':''}</div>${b.linkedGoalId?`<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,data))}</div>`:''}</div>${isViewingSelf()?`<button class="task-actions" data-id="${b.id}" data-source="${b.source}" title="Edit, comment or delete">⋯</button>`:`<button class="cmt-btn" data-cid="${commentsIdFor(b.id,viewingId||me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>`}</div>`;
+    }).join('');
+    el.innerHTML=html;
+    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{state.completion[c.dataset.key]=nextStatus(state.completion[c.dataset.key]);saveState();renderTaskList();renderWeeklyGoalsList();}));
+    if(isViewingSelf()) el.querySelectorAll('.task-actions').forEach(btn=>btn.addEventListener('click',()=>openTaskActions(btn.dataset.id,btn.dataset.source)));
     attachCommentButtons(el);
   }
-
-  // ---------- WEEK SCREEN ----------
-  let weekOffset = 0;
-  function startOfWeek(date, offsetWeeks){
-    const d = new Date(date);
-    d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - d.getDay() + offsetWeeks*7);
-    return d;
+  function openTaskActions(id,source){
+    const dateKey=fmtDate(selectedDate); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===id); if(!block)return;
+    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';
+    backdrop.innerHTML=`<div class="modal" style="text-align:center"><button class="close-x">×</button><h3>${escapeHtml(block.label||subjectNameIn(block.subject,state))}</h3><button class="btn btn-ghost" id="ta-edit" style="width:100%;margin-bottom:8px">✏️ Edit</button><button class="btn btn-ghost" id="ta-comment" style="width:100%;margin-bottom:8px">💬 Comment</button><button class="btn btn-ghost" id="ta-delete" style="width:100%;color:var(--c1)">Delete</button></div>`;
+    document.body.appendChild(backdrop);function close(){backdrop.remove();}backdrop.querySelector('.close-x').addEventListener('click',close);backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
+    backdrop.querySelector('#ta-edit').addEventListener('click',()=>{close();openAddModal(source==='template'?'template':'extra',block);});
+    backdrop.querySelector('#ta-comment').addEventListener('click',()=>{close();openCommentsModal(commentsIdFor(block.id,me.id),block.label||subjectNameIn(block.subject,state));});
+    backdrop.querySelector('#ta-delete').addEventListener('click',()=>{if(source==='template')state.weeklyTemplate=state.weeklyTemplate.filter(x=>x.id!==id);else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(x=>x.id!==id);saveState();close();renderTaskList();renderWeeklyGoalsList();});
   }
 
-  // ---------- weekly goal progress ----------
-  function linkedDoneItemsForGoal(data, goalId, weekStart){
-    const items = [];
-    for(let i=0;i<7;i++){
-      const d = new Date(weekStart); d.setDate(d.getDate()+i);
-      const dateKey = fmtDate(d);
-      blocksForDateIn(data, d).forEach(b=>{
-        if(b.linkedGoalId === goalId){
-          const status = (data.completion||{})[dateKey+'|'+b.id];
-          if(status==='done') items.push({ date:d, dateKey, block:b });
-        }
-      });
-    }
-    return items;
-  }
-  function weeklyGoalProgress(data, goal, weekStart){
-    const items = linkedDoneItemsForGoal(data, goal.id, weekStart);
-    const logged = goal.unit==='hours' ? items.reduce((s,it)=> s+(it.block.duration||0)/60, 0) : items.length;
-    return { progress: Math.max(0, logged + (goal.manualAdjust||0)), items };
-  }
-  function recurringGroupsFor(data, weekStart){
-    const wk = weekStartKey(weekStart);
-    const map = {};
-    (data.weeklyTemplate||[]).filter(b=>b.weekStart===wk).forEach(b=>{
-      const key = b.subject + '|' + (b.label||'');
-      if(!map[key]) map[key] = { key, subject:b.subject, label:b.label, blocks:[] };
-      map[key].blocks.push(b);
-    });
-    return Object.values(map);
-  }
-  function recurringGroupStatus(data, group, weekStart){
-    const dueDays = [...new Set(group.blocks.map(b=>b.day))].sort((a,b)=>a-b);
-    const doneDays = [];
-    dueDays.forEach(dow=>{
-      const d = new Date(weekStart); d.setDate(d.getDate()+dow);
-      const dateKey = fmtDate(d);
-      const blocksThatDay = group.blocks.filter(b=>b.day===dow);
-      if(blocksThatDay.some(b => (data.completion||{})[dateKey+'|'+b.id] === 'done')) doneDays.push(dow);
-    });
-    return { dueDays, doneDays };
-  }
-  function donutSvg(pct, colorCss){
-    const r = 20, c = 2*Math.PI*r;
-    const off = c * (1 - Math.min(100,pct)/100);
-    return `<svg viewBox="0 0 50 50">
-      <circle class="donut-track" cx="25" cy="25" r="${r}"></circle>
-      <circle class="donut-fill" cx="25" cy="25" r="${r}" stroke="${colorCss}" stroke-dasharray="${c}" stroke-dashoffset="${off}"></circle>
-    </svg>`;
-  }
-  function fmtGoalAmt(n){ return Math.round(n*10)/10; }
-  function goalTitleFor(goalId, data){
-    const g = (data.weeklyGoals||[]).find(x=>x.id===goalId);
-    return g ? g.title : 'goal';
-  }
-
-  let openGoalCardId = null;
-  function renderWeeklyGoalsList(){
-    const el = document.getElementById('weeklyGoalsList');
-    if(!el) return;
-    const editable = isViewingSelf();
-    if(!editable && isScheduleHiddenFor(viewingId)){
-      const label = document.getElementById('weekNavLabel');
-      if(label) label.textContent = 'This week';
-      el.innerHTML = `<div class="wgoal-empty">🙈 ${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'This person')} has chosen to keep their schedule private.</div>`;
-      return;
-    }
-    const data = activeData();
-    const weekStart = startOfWeek(new Date(), weekOffset);
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const labelEl = document.getElementById('weekNavLabel');
-    if(labelEl){
-      labelEl.textContent = weekOffset===0 ? 'This week'
-        : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
-    }
-
-
-    const wk = weekStartKey(weekStart);
-    const flexGoals = (data.weeklyGoals||[]).filter(g=>g.weekStart===wk);
-    const groups = recurringGroupsFor(data, weekStart);
-
-    if(groups.length===0 && flexGoals.length===0){
-      el.innerHTML = `<div class="wgoal-empty">No weekly targets yet${editable ? ' — tap “+ New goal” or “+ Recurring” to add one' : ''}.</div>`;
-      return;
-    }
-
-    let html = '';
-
-    groups.forEach(g=>{
-      const { dueDays, doneDays } = recurringGroupStatus(data, g, weekStart);
-      const pct = dueDays.length ? Math.round((doneDays.length/dueDays.length)*100) : 0;
-      const cardId = 'rec_'+g.key.replace(/[^a-z0-9]/gi,'_');
-      const isOpen = openGoalCardId === cardId;
-      const title = g.label || subjectNameIn(g.subject, data);
-      const dayDots = `<div class="day-dots">${[0,1,2,3,4,5,6].map(d=>{
-        const due = dueDays.includes(d);
-        const done = doneDays.includes(d);
-        return `<div class="day-dot ${due?'due':''} ${done?'done':''}">${DAY_NAMES[d][0]}</div>`;
-      }).join('')}</div>`;
-      const linkedRows = dueDays.length ? dueDays.map(dow=>{
-        const done = doneDays.includes(dow);
-        const blocksThatDay = g.blocks.filter(b=>b.day===dow);
-        if(blocksThatDay.length===0) return '';
-        return blocksThatDay.map(b=>`
-          <div class="linked-item">
-            <span><span class="lday">${DAY_NAMES[dow]}</span><span class="lname">${escapeHtml(title)}</span></span>
-            <span class="lamt">${done?'✓ done':'—'}</span>
-          </div>
-        `).join('');
-      }).join('') : `<div class="linked-empty">No due days this week.</div>`;
-      html += `
-        <div class="wgoal-card ${isOpen?'open':''}" data-card="${cardId}">
-          <div class="wgoal-top" data-toggle="${cardId}">
-            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
-            <div class="wgoal-info">
-              <div class="wgoal-title-row">
-                <span class="wgoal-title">${escapeHtml(title)}</span>
-                <span class="type-chip recurring">recurring</span>
-              </div>
-              <div class="wgoal-frac"><b>${doneDays.length}</b> / ${dueDays.length} days this week</div>
-            </div>
-            <div class="chevron">▾</div>
-          </div>
-          ${dayDots}
-          <div class="wgoal-expand">
-            ${linkedRows}
-            ${editable ? `<button type="button" class="edit rec-edit-group" data-rec-key="${g.key}" style="margin-top:10px;">✏️ Edit this recurring block</button>` : ''}
-          </div>
-        </div>
-      `;
-    });
-
-    flexGoals.forEach(g=>{
-      const { progress, items } = weeklyGoalProgress(data, g, weekStart);
-      const pct = g.target ? Math.round(Math.min(100, (progress/g.target)*100)) : 0;
-      const isOpen = openGoalCardId === g.id;
-      const noun = g.unit==='hours' ? 'h' : (g.unit==='count' ? '' : (g.target===1?' session':' sessions'));
-      const fracLabel = g.unit==='hours' ? `<b>${fmtGoalAmt(progress)}</b> / ${g.target}h` : `<b>${Math.round(progress)}</b> / ${g.target}${noun}`;
-      const linkedRows = items.length ? items.map(it=>`
-        <div class="linked-item">
-          <span><span class="lday">${DAY_NAMES[it.date.getDay()]}</span><span class="lname">${escapeHtml(it.block.label || subjectNameIn(it.block.subject, data))}</span></span>
-          <span class="lamt">${g.unit==='hours' ? fmtGoalAmt((it.block.duration||0)/60)+'h' : '1'}</span>
-        </div>
-      `).join('') : `<div class="linked-empty">No daily tasks linked yet this week.</div>`;
-      html += `
-        <div class="wgoal-card ${isOpen?'open':''}" data-card="${g.id}">
-          <div class="wgoal-top" data-toggle="${g.id}">
-            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
-            <div class="wgoal-info">
-              <div class="wgoal-title-row">
-                <span class="wgoal-title">${escapeHtml(g.title)}</span>
-                <span class="type-chip flexible">goal</span>
-              </div>
-              <div class="wgoal-frac">${fracLabel}</div>
-              ${g.note ? `<div class="wgoal-note">${escapeHtml(g.note)}</div>` : ''}
-            </div>
-            <div class="chevron">▾</div>
-          </div>
-          <div class="wgoal-expand">
-            ${g.note ? `<div class="wgoal-note-full">📝 ${escapeHtml(g.note)}</div>` : ''}
-            ${linkedRows}
-            ${editable ? `
-            <div class="adjust-row">
-              <span class="adjust-label">Manual adjust</span>
-              <div class="stepper">
-                <button type="button" class="step-btn" data-adjust="-1" data-id="${g.id}">−</button>
-                <span class="step-val">${(g.manualAdjust||0) >= 0 ? '+' : ''}${g.manualAdjust||0}</span>
-                <button type="button" class="step-btn" data-adjust="1" data-id="${g.id}">+</button>
-              </div>
-            </div>
-            <div class="wgoal-actions">
-              <button type="button" class="edit" data-edit="${g.id}">Edit goal</button>
-              <button type="button" class="del" data-del="${g.id}">Delete</button>
-            </div>` : ''}
-          </div>
-        </div>
-      `;
-    });
-
-    el.innerHTML = html;
-
-    el.querySelectorAll('[data-toggle]').forEach(node=>{
-      node.addEventListener('click', ()=>{
-        const id = node.dataset.toggle;
-        openGoalCardId = openGoalCardId === id ? null : id;
-        renderWeeklyGoalsList();
-      });
-    });
-    if(!editable) return;
-    el.querySelectorAll('[data-adjust]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.id);
-        if(g){ g.manualAdjust = (g.manualAdjust||0) + Number(btn.dataset.adjust); saveState(); renderWeeklyGoalsList(); }
-      });
-    });
-    el.querySelectorAll('[data-edit]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.edit);
-        if(g) openGoalModal(g);
-      });
-    });
-    el.querySelectorAll('[data-del]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        state.weeklyGoals = state.weeklyGoals.filter(g=>g.id!==btn.dataset.del);
-        openGoalCardId = null;
-        saveState();
-        renderWeeklyGoalsList();
-      });
-    });
-    el.querySelectorAll('.rec-edit-group').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        const group = recurringGroupsFor(data, weekStart).find(g=>g.key===btn.dataset.recKey);
-        if(group) openEditRecurringGroupModal(group, weekStart);
-      });
-    });
-  }
-  document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
-  document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
-
-  function openEditRecurringGroupModal(group, weekStart){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const wk = weekStartKey(weekStart);
-    const firstBlock = group.blocks[0];
-    const dueDaysSet = new Set(group.blocks.map(b=>b.day));
-    backdrop.innerHTML = `
-      <div class="modal">
-        <button class="close-x">×</button>
-        <h3>Edit recurring block</h3>
-        <div class="field-row">
-          <label>Label</label>
-          <input type="text" id="rg-label" value="${escapeHtml(group.label||'')}" placeholder="e.g. CSAT">
-        </div>
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="rg-subject"></select>
-        </div>
-        <div class="field-row">
-          <label>Start time</label>
-          <div id="rg-start-wheel"></div>
-        </div>
-        <div class="field-row">
-          <label>Duration</label>
-          <div id="rg-duration-wheel"></div>
-        </div>
-        <div class="field-row">
-          <label>Days this repeats</label>
-          <div class="day-toggle-row" id="rg-days">
-            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle ${dueDaysSet.has(i)?'sel':''}" data-day="${i}">${n}</div>`).join('')}
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="rg-cancel">Cancel</button>
-          <button class="btn btn-primary" id="rg-save">Save changes</button>
-        </div>
-        <button class="btn btn-danger" id="rg-delete-all" style="width:100%; margin-top:10px;">Delete entire recurring block</button>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#rg-subject'), firstBlock.subject);
-    const startWheel = createTimeWheel(backdrop.querySelector('#rg-start-wheel'), firstBlock.start || '16:00');
-    const durationWheel = createDurationStepper(backdrop.querySelector('#rg-duration-wheel'), firstBlock.duration || 30);
-
-    const selectedDays = new Set(dueDaysSet);
-    backdrop.querySelectorAll('#rg-days .day-toggle').forEach(d=>{
-      d.addEventListener('click', ()=>{
-        const day = parseInt(d.dataset.day,10);
-        if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
-        else { selectedDays.add(day); d.classList.add('sel'); }
-      });
-    });
-
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#rg-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    backdrop.querySelector('#rg-save').addEventListener('click', ()=>{
-      if(selectedDays.size===0){ alert('Pick at least one day.'); return; }
-      const label = backdrop.querySelector('#rg-label').value.trim();
-      const subject = backdrop.querySelector('#rg-subject').value;
-      const start = startWheel.getValue();
-      const duration = durationWheel.getValue();
-
-      const existingByDay = {};
-      group.blocks.forEach(b=> existingByDay[b.day] = b);
-
-      group.blocks.forEach(b=>{
-        if(!selectedDays.has(b.day)) state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id);
-      });
-      selectedDays.forEach(day=>{
-        const existing = existingByDay[day];
-        if(existing){
-          existing.subject = subject; existing.start = start; existing.duration = duration; existing.label = label || null;
-        } else {
-          state.weeklyTemplate.push({ id:'blk_'+Date.now()+'_'+day, day, subject, start, duration, label: label||null, weekStart: wk });
-        }
-      });
-      saveState();
-      openGoalCardId = null;
-      renderWeeklyGoalsList();
-      close();
-    });
-
-    backdrop.querySelector('#rg-delete-all').addEventListener('click', ()=>{
-      group.blocks.forEach(b=>{ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); });
-      saveState();
-      openGoalCardId = null;
-      renderWeeklyGoalsList();
-      close();
-    });
-  }
-
-  function openWeekGoalTypeChooser(){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal" style="text-align:center;">
-        <button class="close-x">×</button>
-        <h3>What kind of target?</h3>
-        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:16px;">
-          Recurring is a fixed day+time block that repeats this week (e.g. "CSAT every evening").<br>
-          Flexible is an hours/sessions/count goal you chip away at from Today, any day you like.
-        </div>
-        <button class="btn btn-primary" id="chooser-recurring" style="width:100%; margin-bottom:10px;">📅 Recurring</button>
-        <button class="btn btn-ghost" id="chooser-flexible" style="width:100%;">🎯 Flexible</button>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-    backdrop.querySelector('#chooser-recurring').addEventListener('click', ()=>{ close(); openAddModal('template'); });
-    backdrop.querySelector('#chooser-flexible').addEventListener('click', ()=>{ close(); openGoalModal(); });
-  }
-
-  function openGoalModal(existingGoal){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const isEdit = !!existingGoal;
-    const weekStart = startOfWeek(new Date(), weekOffset);
-    const wk = weekStartKey(weekStart);
-    backdrop.innerHTML = `
-      <div class="modal">
-        <button class="close-x">×</button>
-        <h3>${isEdit ? 'Edit weekly goal' : 'Add weekly goal'}</h3>
-        <div class="field-row">
-          <label>Title</label>
-          <input type="text" id="g-title" placeholder="e.g. Modern History" value="${escapeHtml(existingGoal?.title||'')}">
-        </div>
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="g-subject"></select>
-        </div>
-        <div class="field-row">
-          <label>Progress counted in</label>
-          <select id="g-unit">
-            <option value="hours">Hours</option>
-            <option value="sessions">Sessions</option>
-            <option value="count">Custom count</option>
-          </select>
-        </div>
-        <div class="field-row">
-          <label>Weekly target</label>
-          <input type="number" id="g-target" min="0.5" step="0.5" value="${existingGoal?.target ?? 5}">
-        </div>
-        <div class="field-row">
-          <label>Note <span style="opacity:.6; text-transform:none;">(optional — what to focus on)</span></label>
-          <textarea id="g-note" rows="2" placeholder="e.g. Focus on map-based questions" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(existingGoal?.note||'')}</textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="g-cancel">Cancel</button>
-          <button class="btn btn-primary" id="g-save">${isEdit?'Save changes':'Save goal'}</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#g-subject'), existingGoal?.subject || state.subjects[0].id);
-    const unitSel = backdrop.querySelector('#g-unit');
-    unitSel.value = existingGoal?.unit || 'hours';
-
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#g-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    backdrop.querySelector('#g-save').addEventListener('click', ()=>{
-      const title = backdrop.querySelector('#g-title').value.trim() || 'Untitled goal';
-      const subject = backdrop.querySelector('#g-subject').value;
-      const unit = unitSel.value;
-      const target = Math.max(0.5, parseFloat(backdrop.querySelector('#g-target').value)||1);
-      const note = backdrop.querySelector('#g-note').value.trim();
-      if(isEdit){
-        const g = state.weeklyGoals.find(x=>x.id===existingGoal.id);
-        if(g){ g.title=title; g.subject=subject; g.type='flexible'; g.unit=unit; g.target=target; g.note=note||null; }
-      } else {
-        state.weeklyGoals.push({
-          id:'wg_'+Date.now(), title, subject, type:'flexible', unit, target,
-          weekStart: wk, note: note||null, manualAdjust:0, createdAt: Date.now()
-        });
-        notifyOthers(`${me.name} set a new weekly goal: ${title}`);
-      }
-      saveState();
-      openGoalCardId = isEdit ? existingGoal.id : null;
-      renderWeeklyGoalsList();
-      close();
-    });
-  }
-
-  // ---------- ADD MODAL ----------
-  document.getElementById('fabAdd').addEventListener('click', ()=>{
-    if(currentScreen==='today') openAddModal('extra');
-    else if(currentScreen==='week' && isViewingSelf()) openWeekGoalTypeChooser();
-  });
-
-  // ---------- wheel / dial picker (no manual typing) ----------
-  const WHEEL_ITEM_H = 40;
-  function buildWheelColumn(el, items, initialIndex, onSettle){
-    el.innerHTML = `<div class="opt" style="visibility:hidden;"></div>` +
-      items.map(v=>`<div class="opt">${v}</div>`).join('') +
-      `<div class="opt" style="visibility:hidden;"></div>`;
-    let current = Math.max(0, Math.min(items.length-1, initialIndex));
-    function paintCenter(idx){
-      el.querySelectorAll('.opt').forEach((o,i)=> o.classList.toggle('center', i===idx+1));
-    }
-    function scrollToIndex(idx, smooth){
-      el.scrollTo({ top: idx*WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
-    }
-    scrollToIndex(current, false);
-    paintCenter(current);
-    let settleTimer = null;
-    el.addEventListener('scroll', ()=>{
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(()=>{
-        let idx = Math.round(el.scrollTop / WHEEL_ITEM_H);
-        idx = Math.max(0, Math.min(items.length-1, idx));
-        current = idx;
-        scrollToIndex(idx, true);
-        paintCenter(idx);
-        onSettle(items[idx], idx);
-      }, 110);
-    });
-    return {
-      get value(){ return items[current]; },
-      setIndex(idx){ current = Math.max(0, Math.min(items.length-1, idx)); scrollToIndex(current, false); paintCenter(current); }
-    };
-  }
-  // time-of-day wheel: returns {getValue():"HH:MM", setFromHHMM(str)}
-  function createTimeWheel(container, initialHHMM){
-    container.innerHTML = `
-      <div class="wheel-picker">
-        <div class="wheel-col" id="${container.id}-h"></div>
-        <div class="wheel-col" id="${container.id}-m"></div>
-        <div class="wheel-col" id="${container.id}-a"></div>
-        <div class="wheel-highlight"></div>
-      </div>
-      <div class="wheel-label" style="display:flex; gap:2px;"><span style="flex:1;">Hour</span><span style="flex:1;">Min</span><span style="flex:1;">AM/PM</span></div>
-    `;
-    let [ih, im] = (initialHHMM||'16:00').split(':').map(Number);
-    let ampmInit = ih>=12 ? 'PM':'AM';
-    let h12 = ih%12; if(h12===0) h12=12;
-    const mIdx = Math.round(im/5) % 12; // snap to nearest 5-min mark
-    const hours = Array.from({length:12}, (_,i)=> i+1);
-    const mins = Array.from({length:12}, (_,i)=> pad(i*5));
-    const ampms = ['AM','PM'];
-    let hourVal = h12, minVal = mIdx*5, ampmVal = ampmInit;
-    const hourWheel = buildWheelColumn(container.querySelector(`#${container.id}-h`), hours, hours.indexOf(h12), (v)=>{ hourVal = v; });
-    const minWheel = buildWheelColumn(container.querySelector(`#${container.id}-m`), mins, mIdx, (v)=>{ minVal = parseInt(v,10); });
-    const ampmWheel = buildWheelColumn(container.querySelector(`#${container.id}-a`), ampms, ampms.indexOf(ampmInit), (v)=>{ ampmVal = v; });
-    return {
-      getValue(){
-        let h24 = hourVal % 12;
-        if(ampmVal==='PM') h24 += 12;
-        return `${pad(h24)}:${pad(minVal)}`;
-      }
-    };
-  }
-  // duration stepper (+/- 30 min steps): returns {getValue(): number}
-  function createDurationStepper(container, initialMin){
-    let durVal = Math.max(30, Math.round((initialMin||30)/30)*30);
-    container.innerHTML = `
-      <div class="dur-stepper">
-        <button type="button" class="dur-step-btn" id="${container.id}-minus">−</button>
-        <div class="dur-step-val" id="${container.id}-val">${fmtHM(durVal)}</div>
-        <button type="button" class="dur-step-btn" id="${container.id}-plus">+</button>
-      </div>
-    `;
-    const valEl = container.querySelector(`#${container.id}-val`);
-    const paint = ()=>{ valEl.textContent = fmtHM(durVal); };
-    container.querySelector(`#${container.id}-minus`).addEventListener('click', ()=>{
-      durVal = Math.max(30, durVal-30); paint();
-    });
-    container.querySelector(`#${container.id}-plus`).addEventListener('click', ()=>{
-      durVal = Math.min(480, durVal+30); paint();
-    });
-    return { getValue(){ return durVal; } };
-  }
-
-  function openAddModal(kind, existingBlock, forcedDateKey){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const isTemplate = kind==='template';
-    const isEdit = !!existingBlock;
-    const dateKeyForExtra = forcedDateKey || fmtDate(selectedDate);
-    const modalWeekStart = existingBlock?.weekStart || weekStartKey(startOfWeek(new Date(), isTemplate ? weekOffset : 0));
-    backdrop.innerHTML = `
-      <div class="modal" style="position:relative;">
-        <button class="close-x">×</button>
-        <h3>${isEdit ? (isTemplate?'Edit weekly block':'Edit task') : (isTemplate ? 'Add weekly block' : 'Add task for '+DAY_NAMES[selectedDate.getDay()]+' '+selectedDate.getDate())}</h3>
-        ${isTemplate ? `<p class="modal-subhead">For this week only (${(()=>{const s=new Date(modalWeekStart); const e=new Date(s); e.setDate(e.getDate()+6); const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${M[s.getMonth()]} ${s.getDate()}–${M[e.getMonth()]} ${e.getDate()}`;})()})</p>` : ''}
-
-        <div class="field-row">
-          <label>Label</label>
-          <input type="text" id="m-label" placeholder="e.g. Organic Chem — Ch.4" value="${escapeHtml(existingBlock?.label || '')}">
-        </div>
-
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="m-subject"></select>
-        </div>
-
-        ${(!isTemplate && !isEdit) ? `
-        <div class="field-row" id="m-link-goal-row">
-          <label>Link to weekly goal <span style="opacity:.6; text-transform:none;">(optional, one click)</span></label>
-          <select id="m-link-goal"><option value="">— none —</option></select>
-        </div>` : ''}
-
-        ${isTemplate && !isEdit ? `
-        <div class="field-row">
-          <label>Day(s)</label>
-          <div class="day-toggle-row" id="m-days">
-            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle" data-day="${i}">${n}</div>`).join('')}
-          </div>
-        </div>` : ''}
-
-        <div class="field-row">
-          <label>Start time</label>
-          <div id="m-start-wheel"></div>
-        </div>
-
-        <div class="field-row">
-          <label>Duration</label>
-          <div id="m-duration-wheel"></div>
-        </div>
-
-        ${!isEdit ? `
-        <div class="field-row">
-          <div class="together-toggle" id="m-together">
-            <span class="check" id="m-together-check"></span>
-            <span>We're doing this together</span>
-          </div>
-        </div>` : ''}
-
-        <div class="field-row">
-          <label>New subject color (optional — add a new subject)</label>
-          <input type="text" id="m-new-subject" placeholder="New subject name">
-          <div class="color-row" id="m-colors">
-            ${COLORS.map(c=>`<div class="swatch" data-color="${c}" style="background:${c}"></div>`).join('')}
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="m-cancel">Cancel</button>
-          <button class="btn btn-primary" id="m-save">${isEdit ? 'Save changes' : 'Save'}</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#m-subject'), existingBlock?.subject || state.subjects[0].id);
-    const startWheel = createTimeWheel(backdrop.querySelector('#m-start-wheel'), existingBlock?.start || '16:00');
-    const durationWheel = createDurationStepper(backdrop.querySelector('#m-duration-wheel'), existingBlock?.duration || 30);
-    const linkGoalSel = backdrop.querySelector('#m-link-goal');
-    if(linkGoalSel){
-      const wk = weekStartKey(selectedDate);
-      const weekGoals = (state.weeklyGoals||[]).filter(g=>g.weekStart===wk);
-      linkGoalSel.innerHTML = '<option value="">— none —</option>' +
-        weekGoals.map(g=>`<option value="${g.id}">${escapeHtml(g.title)}</option>`).join('');
-    }
-
-    let pickedColor = COLORS[0];
-    let selectedDays = (isTemplate && !isEdit) ? new Set([selectedDate.getDay()]) : null;
-    if(isTemplate && !isEdit){
-      const dayEls = backdrop.querySelectorAll('.day-toggle');
-      dayEls.forEach(d=>{
-        if(parseInt(d.dataset.day)===selectedDate.getDay()) d.classList.add('sel');
-        d.addEventListener('click', ()=>{
-          const day = parseInt(d.dataset.day);
-          if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
-          else { selectedDays.add(day); d.classList.add('sel'); }
-        });
-      });
-    }
-    backdrop.querySelectorAll('.swatch').forEach(sw=>{
-      sw.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
-        sw.classList.add('sel');
-        pickedColor = sw.dataset.color;
-      });
-    });
-
-    let together = false;
-    const togetherEl = backdrop.querySelector('#m-together');
-    if(togetherEl){
-      togetherEl.addEventListener('click', ()=>{
-        together = !together;
-        togetherEl.classList.toggle('sel', together);
-        backdrop.querySelector('#m-together-check').textContent = together ? '✓' : '';
-      });
-    }
-
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#m-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
-      const label = backdrop.querySelector('#m-label').value.trim();
-      const start = startWheel.getValue();
-      const duration = durationWheel.getValue();
-      const newSubjectName = backdrop.querySelector('#m-new-subject').value.trim();
-      let subjectId = backdrop.querySelector('#m-subject').value;
-
-      if(newSubjectName){
-        subjectId = 'sub_'+Date.now();
-        state.subjects.push({id:subjectId, name:newSubjectName, color:pickedColor});
-      }
-
-      const taskName = label || subjectName(subjectId);
-
-      if(isEdit){
-        if(isTemplate){
-          const blk = state.weeklyTemplate.find(b=>b.id===existingBlock.id);
-          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
-        } else {
-          const list = state.dailyExtra[dateKeyForExtra] || [];
-          const blk = list.find(b=>b.id===existingBlock.id);
-          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
-        }
-        saveState();
-        render();
-        renderWeeklyGoalsList();
-        close();
-        return;
-      }
-
-      if(isTemplate){
-        if(selectedDays.size===0){ selectedDays.add(selectedDate.getDay()); }
-        if(together){
-          for(const day of selectedDays){
-            const d = new Date(modalWeekStart); d.setDate(d.getDate()+day);
-            const dateKey = fmtDate(d);
-            const list = await loadSharedTasks(dateKey);
-            list.push({
-              id:'shr_'+Date.now()+'_'+day, start, duration, label,
-              createdBy: me.id, createdByName: me.name,
-              completions: {}
-            });
-            await saveSharedTasks(dateKey, list);
-          }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
-        } else {
-          selectedDays.forEach(day=>{
-            state.weeklyTemplate.push({
-              id:'blk_'+Date.now()+'_'+day,
-              day, subject:subjectId, start, duration, label, weekStart: modalWeekStart
-            });
-          });
-          saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
-        }
-      } else if(together){
-        const dateKey = fmtDate(selectedDate);
-        const list = await loadSharedTasks(dateKey);
-        list.push({
-          id:'shr_'+Date.now(), start, duration, label,
-          createdBy: me.id, createdByName: me.name,
-          completions: {}
-        });
-        await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
-      } else {
-        const key = fmtDate(selectedDate);
-        if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
-        const linkGoalId = linkGoalSel ? (linkGoalSel.value || null) : null;
-        state.dailyExtra[key].push({
-          id:'ext_'+Date.now(), subject:subjectId, start, duration, label,
-          linkedGoalId: linkGoalId
-        });
-        saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`);
-      }
-      render();
-      close();
-    });
-  }
-
-  // ---------- master render ----------
-  function render(){
-    renderPeopleRow(); renderSnapRow();
-
-    const banner = document.getElementById('viewingBanner');
-    if(currentScreen==='week' && !isViewingSelf()){
-      const friend = usersList.find(u=>u.id===viewingId);
-      banner.style.display = 'block';
-      banner.textContent = `Viewing ${friend ? friend.name : 'their'} weekly schedule — read-only`;
-    } else {
-      banner.style.display = 'none';
-    }
-
-    const fab = document.getElementById('fabAdd');
-    fab.style.display = (currentScreen==='today' || (currentScreen==='week' && isViewingSelf())) ? 'flex' : 'none';
-
-    document.getElementById('timerControlsWrap').style.display = isViewingSelf() ? 'block' : 'none';
-    document.getElementById('friendTimerBanner').style.display = isViewingSelf() ? 'none' : 'block';
-    updateFriendTimerCard();
-    renderGoalCard();
-
-    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
-    renderSessions();
-    renderDayScroller();
-    renderTaskList();
-    renderWeeklyGoalsList();
-    if(currentScreen==='history'){ renderHistoryCalendar(); renderHistory(); renderStudyChart(); }
-  }
-
-  document.getElementById('historyDate').addEventListener('change', async ()=>{
-    const dateInput = document.getElementById('historyDate').value;
-    if(!dateInput) return;
-    const [y,m,d] = dateInput.split('-').map(Number);
-    await resetHistoryFeed(new Date(y, m-1, d));
-  });
-
-  const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  // ---------- study-hours chart (Analyse screen) ----------
-  let chartRange = 'week'; // 'week' | 'fortnight' | 'month'
-  document.getElementById('chartRangeToggle').querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      chartRange = btn.dataset.range;
-      document.querySelectorAll('#chartRangeToggle button').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      renderStudyChart();
-    });
-  });
-  document.getElementById('toggleHistoryList').addEventListener('click', ()=>{
-    const wrap = document.getElementById('historyDetailWrap');
-    const btn = document.getElementById('toggleHistoryList');
-    const opening = wrap.style.display === 'none';
-    wrap.style.display = opening ? 'block' : 'none';
-    btn.textContent = opening ? '📋 Hide day-by-day tasks' : '📋 View day-by-day tasks';
-  });
-
-  function hoursToColor(hours){
-    const h = Math.max(0, hours);
-    let hue;
-    if(h <= 1.5) hue = 140;
-    else if(h <= 4) hue = 140 - ((h-1.5)/2.5) * (140-45);
-    else if(h <= 7) hue = 45 - ((h-4)/3) * 45;
-    else hue = 0;
-    return `hsl(${hue.toFixed(0)}, 68%, 54%)`;
-  }
-  function computeChartBuckets(rangeType){
-    const today = new Date(); today.setHours(0,0,0,0);
-    const buckets = [];
-    if(rangeType==='week' || rangeType==='fortnight'){
-      const days = rangeType==='week' ? 7 : 14;
-      for(let i=days-1; i>=0; i--){
-        const d = new Date(today); d.setDate(d.getDate()-i);
-        buckets.push({ label: DAY_FULL[d.getDay()][0], hours: minutesOnDate(d)/60, isToday: i===0 });
-      }
-    } else {
-      for(let w=4; w>=0; w--){
-        const end = new Date(today); end.setDate(end.getDate() - w*7);
-        const start = new Date(end); start.setDate(start.getDate()-6);
-        let sum = 0;
-        for(let i=0;i<7;i++){
-          const d = new Date(start); d.setDate(d.getDate()+i);
-          if(d > today) break;
-          sum += minutesOnDate(d)/60;
-        }
-        buckets.push({ label: `${start.getMonth()+1}/${start.getDate()}`, hours: sum, isToday: w===0 });
-      }
-    }
-    return buckets;
-  }
-  function renderStudyChart(){
-    const el = document.getElementById('studyChartWrap');
-    if(!el) return;
-    const buckets = computeChartBuckets(chartRange);
-    const w = 320, h = 154, padL=26, padB=20, padT=16, padR=4;
-    const plotW = w-padL-padR, plotH = h-padT-padB;
-    const maxH = Math.max(2, ...buckets.map(b=>b.hours));
-    const n = buckets.length;
-    const gap = n>10 ? 3 : 6;
-    const barW = (plotW - gap*(n-1)) / n;
-
-    const points = buckets.map((b,i)=>{
-      const x = padL + i*(barW+gap) + barW/2;
-      const barH = Math.max(1, (b.hours/maxH) * plotH);
-      const y = padT + (plotH - barH);
-      return { x, y, barH, ...b };
-    });
-
-    let gridSvg = '';
-    [0.5, 1].forEach(f=>{
-      const gy = padT + plotH*(1-f);
-      gridSvg += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
-      gridSvg += `<text x="${padL-4}" y="${gy+3}" font-size="7.5" fill="var(--chalk-faint)" text-anchor="end" font-family="JetBrains Mono">${fmtGoalAmt(maxH*f)}h</text>`;
-    });
-
-    const bars = points.map(p=>{
-      const color = hoursToColor(p.hours);
-      const rx = Math.min(4, barW/3);
-      return `<rect x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${p.barH}" rx="${rx}" fill="${color}" opacity="${p.isToday?1:0.85}"/>`;
-    }).join('');
-
-    const linePath = points.map((p,i)=> (i===0?'M':'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
-    const lineDots = points.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.2" fill="var(--board)" stroke="var(--chalk)" stroke-width="1.3"/>`).join('');
-
-    const showAllLabels = n<=14;
-    const valueLabels = showAllLabels ? points.map(p=> p.hours>0.05 ? `<text x="${p.x}" y="${Math.max(p.y-6,padT+7)}" font-size="7" fill="var(--chalk-dim)" text-anchor="middle" font-family="JetBrains Mono">${fmtGoalAmt(p.hours)}</text>` : '').join('') : '';
-    const xLabels = points.map(p=>`<text x="${p.x}" y="${h-5}" font-size="7.5" fill="var(--chalk-faint)" text-anchor="middle">${p.label}</text>`).join('');
-
-    el.innerHTML = `
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; display:block; overflow:visible;">
-        ${gridSvg}
-        ${bars}
-        <path d="${linePath}" fill="none" stroke="var(--chalk)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
-        ${lineDots}
-        ${valueLabels}
-        ${xLabels}
-      </svg>
-      <div class="chart-legend">
-        <span><i style="background:hsl(140,68%,54%);"></i>light</span>
-        <span><i style="background:hsl(45,68%,54%);"></i>moderate</span>
-        <span><i style="background:hsl(0,68%,54%);"></i>heavy</span>
-      </div>
-    `;
-  }
-
-  let historyCalMonth = new Date(); historyCalMonth.setDate(1);
-  function renderHistoryCalendar(){
-    const el = document.getElementById('historyCalendar');
-    if(!el) return;
-    const data = activeData();
-    const who = isViewingSelf() ? null : ((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend');
-    const y = historyCalMonth.getFullYear(), m = historyCalMonth.getMonth();
-    const first = new Date(y,m,1);
-    const startPad = first.getDay();
-    const daysInMonth = new Date(y,m+1,0).getDate();
-    const today = new Date();
-    const selectedVal = document.getElementById('historyDate').value;
-    let cells = '';
-    for(let i=0;i<startPad;i++) cells += `<div class="hcal-cell empty"></div>`;
-    for(let day=1; day<=daysInMonth; day++){
-      const d = new Date(y,m,day);
-      const key = fmtDate(d);
-      const mins = minutesOnDateIn(data, d);
-      const isFuture = d > today;
-      const isToday = key === fmtDate(today);
-      const isSelected = key === selectedVal;
-      cells += `<div class="hcal-cell ${mins>0?'has-time':''} ${isFuture?'future':''} ${isToday?'today':''} ${isSelected?'selected':''}" data-date="${key}">
-        <div class="d">${day}</div>
-        ${mins>0 ? `<div class="h">${fmtHMCompact(mins)}</div>` : ''}
-      </div>`;
-    }
-    const atCurrentMonth = (y===today.getFullYear() && m===today.getMonth());
-    el.innerHTML = `
-      <div class="hcal-nav">
-        <button class="week-nav-arrow" id="hcalPrev">‹</button>
-        <div class="hcal-nav-label">${MONTHS[m]} ${y}</div>
-        <button class="week-nav-arrow" id="hcalNext" ${atCurrentMonth?'style="opacity:0.3;"':''}>›</button>
-      </div>
-      ${who ? `<div class="hcal-who">${escapeHtml(who)}'s history — tap your name above to switch back</div>` : ''}
-      <div class="hcal-dow-row">
-        ${DAY_NAMES.map(n=>`<div class="hcal-dow">${n}</div>`).join('')}
-      </div>
-      <div class="hcal-grid">
-        ${cells}
-      </div>
-    `;
-    el.querySelector('#hcalPrev').addEventListener('click', ()=>{
-      historyCalMonth = new Date(y, m-1, 1); renderHistoryCalendar();
-    });
-    el.querySelector('#hcalNext').addEventListener('click', ()=>{
-      if(atCurrentMonth) return;
-      historyCalMonth = new Date(y, m+1, 1); renderHistoryCalendar();
-    });
-    el.querySelectorAll('.hcal-cell[data-date]').forEach(cell=>{
-      cell.addEventListener('click', async ()=>{
-        const key = cell.dataset.date;
-        document.getElementById('historyDate').value = key;
-        const [yy,mm,dd] = key.split('-').map(Number);
-        await resetHistoryFeed(new Date(yy,mm-1,dd));
-        renderHistoryCalendar();
-      });
-    });
-  }
-  let historyDates = [];
-  let historyAnchor = null;
-  let historyLoading = false;
-  let historyInitialized = false;
-  let historyLastViewingId = undefined;
-  const HISTORY_BATCH = 10;
-  const HISTORY_MAX_DAYS = 365;
-
-  async function ensureAllFriendBoardsLoaded(){
-    const friends = usersList.filter(u=>u.id!==me.id);
-    for(const u of friends){ if(!friendCache[u.id]) await fetchFriendBoard(u.id); }
-  }
-  async function refreshAllFriendBoards(){
-    const friends = usersList.filter(u=>u.id!==me.id);
-    for(const u of friends){ await fetchFriendBoard(u.id); }
-    renderPeopleRow(); renderSnapRow();
-    renderSessions();
-    renderGoalCard();
-  }
-  let friendBoardsPollHandle = null;
-
-  async function renderHistoryDayBlock(date){
+  function renderHistoryDayBlock(date){
     const dateKey = fmtDate(date);
     const heading = `${DAY_FULL[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
     let body = '';
@@ -3482,8 +2163,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
             <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
             <div class="body">
-              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, data)}</div>
-              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, data)}"></span>${subjectNameIn(b.subject, data)} · ${b.duration||30} min</div>
+              <div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label || subjectNameIn(b.subject, data))}</div>
+              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, data)}"></span>${escapeHtml(subjectNameIn(b.subject, data))} · ${b.duration||30} min</div>
             </div>
             <button class="cmt-btn" data-cid="${commentsIdFor(b.id, ownerId)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>
           </div>
@@ -3496,31 +2177,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const ownerLabel = isViewingSelf() ? 'My tasks' : `${((usersList.find(u=>u.id===viewingId)||{}).name) || 'Their'}'s tasks`;
     if(isViewingSelf() || !isScheduleHiddenFor(viewingId)){
       body += section(ownerLabel, blocksForDateIn(data, date), data, ownerId);
-    }
-
-    const sharedTasks = await loadSharedTasks(dateKey);
-    if(sharedTasks.length){
-      body += `<h3 class="section-title">Done together</h3>` + sharedTasks.map(t=>{
-        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
-        const rowHtml = people.map(p=>{
-          const st = (t.completions||{})[p.id];
-          return `<div class="who-chip ${st||''}" title="${p.name}">
-            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
-            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
-          </div>`;
-        }).join('');
-        return `
-          <div class="task-card shared">
-            <div class="time">${timeColHtml(t.start, t.duration||30)}</div>
-            <div class="body">
-              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
-              <div class="meta">${t.duration||30} min</div>
-              <div class="who-row">${rowHtml}</div>
-            </div>
-            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
-          </div>
-        `;
-      }).join('');
     }
 
     if(!body){ body = `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 4px;">Nothing logged</div>`; }
@@ -3569,329 +2225,34 @@ window.storage = storage; // keep the rest of the app's code unchanged
       loadMoreHistoryDays();
     }
   });
-})();
-
-
-/* ---------- Studyboard UI vNext overrides ---------- */
-(function(){
-  const V = { groupMoved:false, peopleWrapped:false, customMinutes:60 };
-
-  function ensurePeopleToggle(){
-    const row=document.getElementById('peopleRow');
-    if(!row || V.peopleWrapped) return;
-    const wrap=document.createElement('div');
-    wrap.className='people-row-wrap-vnext';
-    row.parentNode.insertBefore(wrap,row);
-    wrap.appendChild(row);
-    const btn=document.createElement('button');
-    btn.className='people-collapse-btn'; btn.id='peopleCollapseBtn'; btn.type='button'; btn.title='Collapse people row'; btn.textContent='‹';
-    wrap.appendChild(btn);
-    const key='sb-people-collapsed';
-    const setCollapsed=(yes)=>{wrap.classList.toggle('collapsed',yes);btn.textContent=yes?'›':'‹';btn.title=yes?'Expand people row':'Collapse people row';localStorage.setItem(key,yes?'1':'0');};
-    btn.addEventListener('click',()=>setCollapsed(!wrap.classList.contains('collapsed')));
-    setCollapsed(localStorage.getItem(key)==='1');
-    V.peopleWrapped=true;
+  async function setLiveStatus(patch){
+    if(!me) return;
+    const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
+    liveCache[me.id] = merged;
+    renderPeopleRow(); renderSnapRow();
+    updateFriendTimerCard();
+    try{
+      await set(ref(rtdb, 'liveStatus/' + me.id), merged);
+    }catch(e){}
   }
 
-  function moveGroupBarToLive(){
-    const bar=document.querySelector('.group-bar');
-    const live=document.getElementById('screen-live');
-    if(!bar||!live||V.groupMoved) return;
-    live.insertBefore(bar,live.firstChild);
-    V.groupMoved=true;
+  async function getLiveStatus(uid){
+    try{
+      const snap = await get(ref(rtdb, 'liveStatus/' + uid));
+      return snap.exists() ? snap.val() : null;
+    }catch(e){ return null; }
   }
 
-  function syncProfileAndGroupVisibility(){
-    ensurePeopleToggle(); moveGroupBarToLive();
-    const wrap=document.querySelector('.people-row-wrap-vnext');
-    if(wrap) wrap.style.display=(currentScreen==='timer'||currentScreen==='today'||currentScreen==='week')?'flex':'none';
-    const bar=document.querySelector('#screen-live .group-bar');
-    if(bar) bar.style.display=currentScreen==='live'?'flex':'none';
+  let selfLiveUnsub = null;
+  function subscribeSelfLiveStatus(){
+    if(selfLiveUnsub) selfLiveUnsub();
+    selfLiveUnsub = onValue(ref(rtdb, 'liveStatus/' + me.id), (snap)=>{
+      const st = snap.exists() ? snap.val() : null;
+      liveCache[me.id] = st;
+      reconcileLocalTimerFromRemote(st);
+      renderPeopleRow(); renderSnapRow();
+      updateFriendTimerCard();
+    }, (err)=>{});
   }
 
-  function setupNowMarkup(){
-    const wrap=document.getElementById('timerControlsWrap');
-    const timerRing=document.querySelector('.timer-ring-wrap');
-    if(!wrap||!timerRing) return;
-    timerRing.classList.add('timer-ring-wrap-vnext');
-    const subject=document.getElementById('timerSubject');
-    if(subject) subject.parentElement.style.display='none';
-    const ms=document.getElementById('modeStopwatch'); const mc=document.getElementById('modeCountdown');
-    if(ms) ms.textContent='Stopwatch'; if(mc) mc.textContent='Focus Timer';
-    const row=document.getElementById('countdownLenChips');
-    if(row && !row.dataset.vnext){
-      row.dataset.vnext='1';
-      row.innerHTML = `
-        <div class="dur-chip sel" data-min="30"><span class="dur-min">30 min</span></div>
-        <div class="dur-chip" data-min="60"><span class="dur-min">1 hour</span></div>
-        <div class="dur-chip custom-chip" data-custom="1"><span class="dur-min">Custom</span></div>`;
-      row.querySelectorAll('.dur-chip').forEach(ch=>{
-        ch.addEventListener('click',()=>{
-          if(timerRunning) return;
-          if(ch.dataset.custom){ openVNextCustomDuration(); return; }
-          row.querySelectorAll('.dur-chip').forEach(x=>x.classList.remove('sel')); ch.classList.add('sel');
-          countdownTotalMs=parseInt(ch.dataset.min,10)*60000; renderTimerDigits(); renderRing();
-        });
-      });
-    }
-    const rename=document.getElementById('renamePresetsBtn'); if(rename) rename.style.display='none';
-    const ctl=document.querySelector('.timer-controls');
-    if(ctl && !ctl.classList.contains('timer-controls-vnext')){
-      ctl.classList.add('timer-controls-vnext');
-      const link=document.createElement('button');
-      link.id='linkedTargetBtn'; link.className='link-target-btn'; link.type='button'; link.title='Link today\'s daily target'; link.textContent='📌';
-      ctl.insertBefore(link, document.getElementById('startBtn'));
-      link.addEventListener('click',openVNextLinkTarget);
-    }
-    const focus=document.getElementById('focusToggleBtn');
-    if(focus && !focus.classList.contains('focus-pill-vnext')){
-      focus.classList.add('focus-pill-vnext'); focus.textContent='🧘 Focus'; focus.title='Enter focus mode';
-      timerRing.appendChild(focus);
-    }
-    // add an empty compact label below linked button
-    if(!document.getElementById('linkedTargetLabel')){
-      const label=document.createElement('div'); label.id='linkedTargetLabel'; label.className='vnext-link-label'; timerRing.appendChild(label);
-    }
-  }
-
-  function syncNowControls(){
-    const wrap=document.getElementById('timerControlsWrap');
-    if(!wrap) return;
-    const committed=timerRunning || elapsedMs>0;
-    wrap.classList.toggle('vnext-committed',committed);
-    const link=document.getElementById('linkedTargetBtn');
-    const focus=document.getElementById('focusToggleBtn');
-    const focusOn=document.body.classList.contains('focus-active');
-    if(link){ link.classList.toggle('active',committed && !focusOn); link.classList.toggle('linked',!!window.__vnextLinkedTaskId); link.style.display=(committed&&!focusOn)?'flex':'none'; }
-    if(focus){ focus.classList.toggle('visible',committed&&!focusOn); }
-    const label=document.getElementById('linkedTargetLabel');
-    if(label){ label.textContent=window.__vnextLinkedTaskLabel ? `🔗 ${window.__vnextLinkedTaskLabel}` : ''; }
-  }
-
-  async function openVNextCustomDuration(){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Custom focus time</h3>
-      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:10px;">Scroll hours and minutes</div>
-      <div class="custom-time-grid"><div><div class="modal-subhead">Hour</div><div id="v-h"></div></div><div><div class="modal-subhead">Minute</div><div id="v-m"></div></div></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="v-cancel">Cancel</button><button class="btn btn-primary" id="v-save">Use time</button></div></div>`;
-    document.body.appendChild(backdrop);
-    const h=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
-    const m=[0,5,10,15,20,25,30,35,40,45,50,55].map(i=>String(i).padStart(2,'0'));
-    const curH=Math.floor(V.customMinutes/60), curM=V.customMinutes%60, mi=Math.min(11,Math.round(curM/5));
-    const wh=createTimeWheel(backdrop.querySelector('#v-h'),String(curH).padStart(2,'0')+':00');
-    // createTimeWheel is HH:MM oriented, use a lightweight local wheel for minutes.
-    function simpleWheel(el,items,idx){
-      el.innerHTML=`<div class="wheel-picker">${items.map(v=>`<div class="opt">${v}</div>`).join('')}</div>`;
-      const w=el.firstElementChild; const paint=()=>{const i=Math.max(0,Math.min(items.length-1,Math.round(w.scrollTop/40)));w.querySelectorAll('.opt').forEach((o,j)=>o.classList.toggle('center',j===i));return i;};
-      w.addEventListener('scroll',()=>requestAnimationFrame(paint)); w.scrollTop=idx*40; paint(); return {get value(){return items[paint()];}};
-    }
-    const wh2=simpleWheel(backdrop.querySelector('#v-h'),h,curH);
-    const wm=simpleWheel(backdrop.querySelector('#v-m'),m,mi);
-    function close(){backdrop.remove();}
-    backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-cancel').onclick=close;
-    backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#v-save').onclick=()=>{ const hh=parseInt(wh2.value,10)||0; const mm=parseInt(wm.value,10)||0; if(hh===0&&mm===0){alert('Choose more than 0 minutes.');return;} V.customMinutes=hh*60+mm; countdownTotalMs=V.customMinutes*60000; backdrop.remove(); applyModeUI('countdown'); document.querySelectorAll('#countdownLenChips .dur-chip').forEach(x=>x.classList.remove('sel')); const c=document.querySelector('#countdownLenChips .custom-chip'); if(c)c.classList.add('sel'); renderTimerDigits(); };
-  }
-
-  function todayTaskOptions(){
-    const d=new Date(); const dateKey=fmtDate(d); const blocks=blocksForDateIn(state,d); return blocks.map(b=>({id:b.id,label:b.label||subjectNameIn(b.subject,state),duration:b.duration||30,subject:b.subject,dateKey}));
-  }
-
-  function openVNextLinkTarget(){
-    const tasks=todayTaskOptions();
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Link daily target</h3>
-      <div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">The task duration becomes the focus duration automatically.</div>
-      <div id="v-task-list">${tasks.length?tasks.map(t=>`<button class="btn btn-ghost v-task-pick" data-id="${t.id}" style="width:100%;margin-bottom:8px;text-align:left;"><b>${escapeHtml(t.label)}</b><br><span style="font-size:10px;color:var(--chalk-faint)">${t.duration} min · ${escapeHtml(subjectNameIn(t.subject,state))}</span></button>`).join(''):'<div style="font-size:12px;color:var(--chalk-faint);padding:10px 0;">No daily tasks for today.</div>'}</div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="v-unlink">Unlink</button><button class="btn btn-ghost" id="v-close">Close</button></div></div>`;
-    document.body.appendChild(backdrop);
-    function close(){backdrop.remove();} backdrop.querySelector('.close-x').onclick=close; backdrop.querySelector('#v-close').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelectorAll('.v-task-pick').forEach(btn=>btn.addEventListener('click',()=>{
-      const t=tasks.find(x=>x.id===btn.dataset.id); if(!t)return;
-      window.__vnextLinkedTaskId=t.id; window.__vnextLinkedTaskLabel=t.label; window.__vnextLinkedTaskDuration=t.duration; window.__vnextLinkedTaskDate=t.dateKey;
-      countdownTotalMs=t.duration*60000;
-      if(timerRunning && timerMode==='countdown' && elapsedMs>=countdownTotalMs){ elapsedMs=countdownTotalMs; finishSession(true); }
-      else { renderTimerDigits(); syncNowControls(); }
-      close();
-    }));
-    backdrop.querySelector('#v-unlink').onclick=()=>{window.__vnextLinkedTaskId=null;window.__vnextLinkedTaskLabel='';window.__vnextLinkedTaskDuration=null;window.__vnextLinkedTaskDate=null;syncNowControls();close();};
-  }
-
-  // Track linked-session metadata around the existing finishSession implementation.
-  const __vnextOriginalFinish = finishSession;
-  finishSession = function(completed, reason){
-    const beforeKey=fmtDate(new Date(sessionStartClock||Date.now()));
-    const beforeLen=((state.sessions[beforeKey]||[]).length);
-    __vnextOriginalFinish(completed, reason);
-    const list=state.sessions[beforeKey]||[];
-    if(window.__vnextLinkedTaskId && list.length>beforeLen){
-      const s=list[list.length-1];
-      s.linkedTaskId=window.__vnextLinkedTaskId;
-      s.linkedTaskDate=window.__vnextLinkedTaskDate||beforeKey;
-      s.linkedTaskDuration=window.__vnextLinkedTaskDuration||null;
-      saveState();
-    }
-    window.__vnextLinkedTaskId=null; window.__vnextLinkedTaskLabel=''; window.__vnextLinkedTaskDuration=null; window.__vnextLinkedTaskDate=null; syncNowControls();
-  };
-
-  // Override the edit-session modal so linking is available there.
-  openEditSessionModal = function(session,dateKey){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    const tasks=blocksForDateIn(state,new Date(dateKey+'T12:00:00'));
-    backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Edit session</h3>
-      <div class="field-row"><label>Subject</label><select id="es-subject"></select></div>
-      <div class="field-row"><label>Duration (minutes)</label><input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}"></div>
-      <div class="field-row"><label>Linked daily target</label><select id="es-link"><option value="">— none —</option>${tasks.map(t=>`<option value="${t.id}">${escapeHtml(t.label||subjectNameIn(t.subject,state))} · ${t.duration||30} min</option>`).join('')}</select></div>
-      <div class="field-row"><label>Note</label><textarea id="es-note" rows="2" style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:10px;color:var(--chalk);padding:10px;font-family:'Inter';font-size:13px;resize:vertical;">${escapeHtml(session.note||'')}</textarea></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button><button class="btn btn-primary" id="es-save">Save</button></div></div>`;
-    document.body.appendChild(backdrop); renderSubjectOptions(backdrop.querySelector('#es-subject'),session.subject); const link=backdrop.querySelector('#es-link'); if(session.linkedTaskId) link.value=session.linkedTaskId;
-    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x').onclick=close; backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    backdrop.querySelector('#es-save').onclick=()=>{ const s=(state.sessions[dateKey]||[]).find(x=>x.id===session.id); if(!s)return; s.subject=backdrop.querySelector('#es-subject').value; s.duration=Math.max(1,parseFloat(backdrop.querySelector('#es-duration').value)||1); s.note=backdrop.querySelector('#es-note').value.trim(); s.linkedTaskId=link.value||null; s.linkedTaskDate=link.value?dateKey:null; s.linkedTaskDuration=link.value?(tasks.find(t=>t.id===link.value)?.duration||null):null; saveState(); renderSessions(); renderTaskList(); close(); };
-    backdrop.querySelector('#es-delete').onclick=()=>{state.sessions[dateKey]=(state.sessions[dateKey]||[]).filter(s=>s.id!==session.id);saveState();renderSessions();renderTaskList();close();};
-  };
-
-  function linkedProgressFor(data,dateKey,taskId){
-    return ((data.sessions||{})[dateKey]||[]).filter(s=>s.linkedTaskId===taskId).reduce((sum,s)=>sum+(s.duration||0),0);
-  }
-
-  function taskActionMenu(anchor, task, source, dateKey){
-    document.querySelectorAll('.task-menu-vnext').forEach(x=>x.remove());
-    const menu=document.createElement('div'); menu.className='task-menu-vnext';
-    menu.innerHTML=`<button data-act="edit">✏️ Edit</button><button data-act="comment">💬 Comment</button><button data-act="delete" style="color:var(--c1);">🗑 Delete</button>`;
-    document.body.appendChild(menu); const r=anchor.getBoundingClientRect(); menu.style.left=Math.min(window.innerWidth-140,Math.max(8,r.right-138))+'px'; menu.style.top=Math.min(window.innerHeight-150,r.bottom+6)+'px';
-    const close=()=>menu.remove(); menu.querySelector('[data-act=edit]').onclick=()=>{close(); const block=source==='template'?state.weeklyTemplate.find(b=>b.id===task.id):(state.dailyExtra[dateKey]||[]).find(b=>b.id===task.id); if(block) openAddModal(source==='template'?'template':'extra',block,dateKey);};
-    menu.querySelector('[data-act=comment]').onclick=()=>{close(); openCommentsModal(commentsIdFor(task.id,me.id),task.label||subjectNameIn(task.subject,state));};
-    menu.querySelector('[data-act=delete]').onclick=()=>{close(); if(!confirm('Delete this task?'))return; if(source==='template') state.weeklyTemplate=state.weeklyTemplate.filter(b=>b.id!==task.id); else state.dailyExtra[dateKey]=(state.dailyExtra[dateKey]||[]).filter(b=>b.id!==task.id); saveState(); renderTaskList(); renderWeeklyGoalsList();};
-    setTimeout(()=>document.addEventListener('click',close,{once:true,capture:true}),0);
-  }
-
-  renderTaskList = async function(){
-    const el=document.getElementById('taskList'); if(!el||!me)return;
-    const dateKey=fmtDate(selectedDate); const data=activeData(); const editable=isViewingSelf();
-    if(!editable) await fetchFriendBoard(viewingId);
-    const liveData=editable?state:(friendCache[viewingId]||data);
-    const blocks=blocksForDateIn(liveData,selectedDate);
-    const name=editable?'My tasks':((usersList.find(u=>u.id===viewingId)||{}).name||'Their')+"'s tasks";
-    if(!blocks.length){el.innerHTML=`<h3 class="section-title">${escapeHtml(name)}</h3><div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>${editable?'tap + to add a task for this day':''}</div>`;return;}
-    let html=`<h3 class="section-title">${escapeHtml(name)}</h3>`;
-    blocks.forEach(b=>{
-      const compKey=dateKey+'|'+b.id; let status=(liveData.completion||{})[compKey]; const logged=linkedProgressFor(liveData,dateKey,b.id); const dur=b.duration||30; const pct=status==='done'?100:Math.min(100,Math.round((logged/dur)*100));
-      if(editable && pct>=100 && status!=='done'){ state.completion[compKey]='done'; status='done'; }
-      html+=`<div class="task-progress-card ${status==='done'?'done':''}" style="--task-pct:${pct}%;"><div class="task-progress-inner">
-        <div class="time">${timeColHtml(b.start,dur)}</div><div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':''}</div>
-        <div class="body"><div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label||subjectNameIn(b.subject,liveData))}</div><div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject,liveData)}"></span>${escapeHtml(subjectNameIn(b.subject,liveData))} · ${dur} min</div><div class="progress-note">${Math.min(dur,Math.round(logged*10)/10)} / ${dur} min · ${pct}%${b.linkedGoalId?` · 🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId,liveData))}`:''}</div></div>
-        ${editable?`<button class="task-more" data-task-id="${b.id}" data-source="${b.source}" title="More">⋯</button>`:''}
-      </div></div>`;
-    });
-    el.innerHTML=html;
-    el.querySelectorAll('.check').forEach(c=>c.addEventListener('click',()=>{const k=c.dataset.key;state.completion[k]=nextStatus(state.completion[k]);saveState();renderTaskList();renderWeeklyGoalsList();}));
-    el.querySelectorAll('.task-more').forEach(btn=>{const task=blocks.find(b=>b.id===btn.dataset.taskId);btn.addEventListener('click',e=>{e.stopPropagation();taskActionMenu(btn,task,btn.dataset.source,dateKey);});});
-    if(editable) saveState();
-  };
-
-  // Weekly start-day preference and improved range label.
-  startOfWeek = function(date,offsetWeeks){
-    const d=new Date(date); d.setHours(0,0,0,0); const startDay=Number.isInteger(state.weekStartDay)?state.weekStartDay:0; const delta=(d.getDay()-startDay+7)%7; d.setDate(d.getDate()-delta+(offsetWeeks||0)*7); return d;
-  };
-
-  function ensureWeekNavVNext(){
-    const nav=document.getElementById('weekNav'); if(!nav||nav.dataset.vnext)return; nav.dataset.vnext='1';
-    const arrowPrev=document.getElementById('weekPrev'), arrowNext=document.getElementById('weekNext'), label=document.getElementById('weekNavLabel');
-    nav.classList.add('week-nav-vnext');
-    const wrap=document.createElement('div'); wrap.className='week-center-wrap'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.flex='1'; wrap.style.gap='6px';
-    const center=document.createElement('div'); center.className='week-center'; center.id='weekVCenter';
-    const edit=document.createElement('button'); edit.className='week-start-btn'; edit.id='weekStartEdit'; edit.textContent='✎'; edit.title='Choose week start';
-    label.replaceWith(wrap); wrap.appendChild(center); wrap.appendChild(edit);
-    edit.onclick=openWeekStartPicker;
-  }
-  function openWeekStartPicker(){
-    const backdrop=document.createElement('div');backdrop.className='modal-backdrop';backdrop.innerHTML=`<div class="modal"><button class="close-x">×</button><h3>Week start</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">Choose which day starts your weekly targets.</div><div class="day-toggle-row">${DAY_NAMES.map((n,i)=>`<button class="day-toggle" data-d="${i}">${n}</button>`).join('')}</div><div class="modal-actions"><button class="btn btn-ghost" id="wsc">Cancel</button><button class="btn btn-primary" id="wss">Save</button></div></div>`;document.body.appendChild(backdrop);backdrop.querySelectorAll('.day-toggle').forEach(b=>{if(Number(b.dataset.d)===(Number.isInteger(state.weekStartDay)?state.weekStartDay:0))b.classList.add('sel');b.onclick=()=>{backdrop.querySelectorAll('.day-toggle').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};});const close=()=>backdrop.remove();backdrop.querySelector('.close-x').onclick=close;backdrop.querySelector('#wsc').onclick=close;backdrop.querySelector('#wss').onclick=()=>{state.weekStartDay=Number(backdrop.querySelector('.day-toggle.sel')?.dataset.d||0);saveState();weekOffset=0;renderWeeklyGoalsList();close();};
-  }
-
-  const __vnextOriginalWeeklyGoals=renderWeeklyGoalsList;
-  renderWeeklyGoalsList=function(){
-    ensureWeekNavVNext(); __vnextOriginalWeeklyGoals();
-    const start=startOfWeek(new Date(),weekOffset), end=new Date(start); end.setDate(end.getDate()+6); const center=document.getElementById('weekVCenter');
-    if(center){ const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; center.innerHTML=`<span style="font-size:10px;color:var(--chalk-faint)">${M[start.getMonth()]} ${start.getDate()}</span><div style="font-family:'Kalam';font-size:15px;color:var(--chalk)">${weekOffset===0?'This week':'Week'}</div><span style="font-size:10px;color:var(--chalk-faint)">${M[end.getMonth()]} ${end.getDate()}</span>`; }
-  };
-
-  function updateHeaderTitle(){ const t=document.getElementById('headerTitle'), s=document.getElementById('headerSub'); if(t&&currentScreen==='timer'){t.textContent='Study Board';} if(s&&currentScreen==='timer'){s.textContent='stay on the clock';} }
-
-  const __vnextOriginalRender=render;
-  render=function(){
-    setupNowMarkup(); syncProfileAndGroupVisibility(); __vnextOriginalRender(); setupNowMarkup(); syncNowControls(); updateHeaderTitle();
-  };
-
-  // Make focus button react to focus-state changes.
-  const __vnextFocusClassObserver=new MutationObserver(()=>syncNowControls());
-  __vnextFocusClassObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
-
-  // Keep Daily progress fresh while a linked session is running.
-  setInterval(()=>{ if(timerRunning && window.__vnextLinkedTaskId && currentScreen==='today') renderTaskList(); },15000);
-
-
-  // ---------- vNext LIVE-only group menu ----------
-  const __vnextOriginalRenderGroupBar = renderGroupBar;
-  renderGroupBar = function(){
-    __vnextOriginalRenderGroupBar();
-    const bar=document.querySelector('#screen-live .group-bar');
-    const main=document.getElementById('groupBar');
-    if(!bar||!main||!activeGroupData)return;
-    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
-    const label=main.querySelector('#groupBarLabel');
-    if(label && hidden) label.innerHTML=`<span style="font-weight:700">${escapeHtml(me?.name||'You')}</span><span class="group-vnext-actions-note"> · group hidden</span>`;
-    const snap=document.getElementById('snapRow');
-    if(snap && currentScreen==='live') snap.style.display=hidden?'none':'';
-  };
-
-  function vNextGroupModal(content, mountId='vgrp-modal'){
-    const backdrop=document.createElement('div'); backdrop.className='modal-backdrop';
-    backdrop.innerHTML=`<div class="modal" id="${mountId}">${content}</div>`; document.body.appendChild(backdrop);
-    const close=()=>backdrop.remove(); backdrop.querySelector('.close-x')?.addEventListener('click',close); backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});
-    return {backdrop,body:backdrop.querySelector('#'+mountId),close};
-  }
-
-  const __vnextOriginalGroupsModal = openGroupsModal;
-  function openVNextGroupMenu(){
-    if(!activeGroupData){ __vnextOriginalGroupsModal(); return; }
-    const hidden=localStorage.getItem('sb-live-group-hidden-'+activeGroupId)==='1';
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>${escapeHtml(activeGroupData.name)}</h3><div style="font-size:11px;color:var(--chalk-faint);margin-bottom:12px;">${Object.keys(activeGroupData.members||{}).length} members</div>
-      <div class="group-vnext-actions"><button class="btn btn-ghost" id="vgrp-edit">✏️ Edit</button><button class="btn btn-ghost" id="vgrp-share">↗ Share</button><button class="btn btn-ghost" id="vgrp-hide">${hidden?'◉ Show':'◌ Hide'} people</button><button class="btn btn-primary" id="vgrp-switch">⇄ Switch / Create</button></div>`);
-    ui.body.querySelector('#vgrp-edit').onclick=()=>{ui.close();openVNextGroupEdit(activeGroupId);};
-    ui.body.querySelector('#vgrp-share').onclick=()=>{ui.close();openVNextGroupShare(activeGroupId);};
-    ui.body.querySelector('#vgrp-hide').onclick=()=>{localStorage.setItem('sb-live-group-hidden-'+activeGroupId,hidden?'0':'1');renderGroupBar();renderSnapRow();};
-    ui.body.querySelector('#vgrp-switch').onclick=()=>{ui.close();openGroupsModal();};
-  }
-
-  async function fetchGroupFresh(groupId){try{const snap=await getDoc(doc(db,'groups',groupId));return snap.exists()?snap.data():null;}catch(e){return null;}}
-  async function openVNextGroupEdit(groupId){
-    const g=await fetchGroupFresh(groupId); if(!g)return;
-    const owner=g.ownerId===me.id; const d=g.deadlineAt?new Date(g.deadlineAt).toISOString().slice(0,10):'';
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Edit group</h3>
-      <div class="field-row"><label>Group name</label><input id="ve-name" value="${escapeHtml(g.name||'')}"></div>
-      <div class="field-row"><label>Daily target (hours)</label><input id="ve-daily" type="number" min="0" step="0.5" value="${g.dailyGoalHours||0}"></div>
-      <div class="field-row"><label>Weekly target (hours)</label><input id="ve-weekly" type="number" min="0" step="0.5" value="${g.weeklyGoalHours||0}"></div>
-      <div class="field-row"><label>Deadline</label><input id="ve-deadline" type="date" value="${d}"></div>
-      <h4 style="font-family:'Kalam';font-weight:400;margin:14px 0 6px">Members</h4><div id="ve-members"></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="ve-cancel">Cancel</button>${owner?'<button class="btn btn-danger" id="ve-delete">Delete group</button>':''}<button class="btn btn-primary" id="ve-save">Save</button></div>`);
-    const members=ui.body.querySelector('#ve-members'); members.innerHTML=Object.keys(g.members||{}).map(uid=>{const pp=profileFor(uid);return `<div class="group-member-row-vnext"><span>${escapeHtml(pp.name)}${uid===g.ownerId?' 👑':''}</span>${owner&&uid!==me.id?`<button class="task-del" data-rm="${uid}">×</button>`:''}</div>`}).join('');
-    members.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{await removeMemberFromGroup(groupId,b.dataset.rm);openVNextGroupEdit(groupId);ui.close();});
-    ui.body.querySelector('#ve-cancel').onclick=ui.close;
-    ui.body.querySelector('#ve-save').onclick=async()=>{const name=ui.body.querySelector('#ve-name').value.trim();if(!name)return alert('Give the group a name.');const ds=ui.body.querySelector('#ve-deadline').value;const deadlineAt=ds?new Date(ds+'T23:59:59').getTime():null;await setDoc(doc(db,'groups',groupId),{name,dailyGoalHours:parseFloat(ui.body.querySelector('#ve-daily').value)||0,weeklyGoalHours:parseFloat(ui.body.querySelector('#ve-weekly').value)||0,deadlineAt},{merge:true});activeGroupData=await fetchGroupFresh(groupId);renderGroupBar();ui.close();};
-    ui.body.querySelector('#ve-delete')?.addEventListener('click',async()=>{if(!confirm('Delete this group? This cannot be undone.'))return;await deleteDoc(doc(db,'groups',groupId));myGroupIds=myGroupIds.filter(x=>x!==groupId);activeGroupId=myGroupIds[0]||null;activeGroupData=activeGroupId?await fetchGroupFresh(activeGroupId):null;await setDoc(doc(db,'groupMemberships',me.id),{groupIds:myGroupIds,activeGroupId},{merge:true});ui.close();render();});
-  }
-
-  async function openVNextGroupShare(groupId){
-    const g=await fetchGroupFresh(groupId);if(!g)return;const inviteUrl=location.origin+location.pathname+'?join='+g.inviteCode;const qr='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(inviteUrl);
-    const ui=vNextGroupModal(`<button class="close-x">×</button><h3>Share ${escapeHtml(g.name)}</h3><div class="grp-detail-code"><div style="font-size:10px;color:var(--chalk-faint);text-transform:uppercase">Access code</div><div class="code">${g.inviteCode}</div><img src="${qr}" alt="QR code" style="max-width:180px;border-radius:12px;background:white;padding:8px"><button class="btn btn-primary" id="vs-copy" style="width:100%;margin-top:8px">Copy invite link</button></div>`);
-    ui.body.querySelector('#vs-copy').onclick=async()=>{try{await navigator.clipboard.writeText(inviteUrl);}catch(e){}const b=ui.body.querySelector('#vs-copy');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy invite link',1000);};
-  }
-
-  openGroupsModal = function(){ openVNextGroupMenu(); };
-
-  // Initial state: preserve 30-minute default and hide group row except in Live.
-  if(!state.weekStartDay && state.weekStartDay!==0) state.weekStartDay=0;
-  if(typeof state.focusPresetNames==='undefined') state.focusPresetNames=[];
-  applyModeUI(timerMode); countdownTotalMs=30*60000; V.customMinutes=30; renderTimerDigits();
-  setTimeout(()=>{setupNowMarkup();syncProfileAndGroupVisibility();syncNowControls();renderWeeklyGoalsList();},0);
 })();
